@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase";
-import { getWeeklyReleases } from "../../../lib/comicvine";
+import { fetchWeeklyReleases } from "../../../lib/league";
 
 export async function GET(request) {
   const supabase = await createClient();
@@ -12,7 +12,7 @@ export async function GET(request) {
 
   let releases = [];
   try {
-    releases = await getWeeklyReleases(date);
+    releases = await fetchWeeklyReleases(date);
   } catch (e) {
     return NextResponse.json({ releases: [], pullMatches: [], warning: e.message });
   }
@@ -23,16 +23,11 @@ export async function GET(request) {
     .eq("active", true);
 
   const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const pullCvIds = new Set((pullList ?? []).map(i => i.series?.comicvine_id).filter(Boolean));
   const normalizedPull = (pullList ?? []).map((i) => normalize(i.series?.name));
 
-  // Match by volume ComicVine ID (reliable) or series name (fallback)
   const pullMatches = releases
-    .filter((r) =>
-      (r.volume_cv_id && pullCvIds.has(r.volume_cv_id)) ||
-      normalizedPull.some((n) => n && normalize(r.series_name || r.title).includes(n))
-    )
-    .map((r) => r.volume_cv_id || r.cv_id);
+    .filter((r) => normalizedPull.some((n) => n && normalize(r.series_name || r.title).includes(n)))
+    .map((r) => r.cv_id);
 
   return NextResponse.json({ releases, pullMatches });
 }

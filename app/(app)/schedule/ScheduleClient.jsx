@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -15,17 +14,20 @@ function getWeekMonday(offset = 0) {
 }
 
 function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().split("T")[0];
 }
 
 export default function ScheduleClient() {
-  const [weekOffset, setOffset]   = useState(0);
-  const [schedule, setSchedule]   = useState([]);
-  const [selectedDay, setDay]     = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [weekOffset, setOffset]     = useState(0);
+  const [schedule, setSchedule]     = useState([]);
+  const [selectedDay, setDay]       = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError]     = useState(null);
+  const [genNote, setGenNote]       = useState(null);
 
   const monday = getWeekMonday(weekOffset);
 
@@ -55,6 +57,27 @@ export default function ScheduleClient() {
 
   useEffect(() => { load(); setDay(null); }, [weekOffset]);
 
+  async function generateSchedule() {
+    setGenerating(true);
+    setGenError(null);
+    setGenNote(null);
+    try {
+      const res  = await fetch("/api/schedule/suggest", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ weekStart: monday }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to generate schedule");
+      setGenNote(`Scheduled ${data.scheduled} issue${data.scheduled !== 1 ? "s" : ""} across the week`);
+      await load();
+    } catch (e) {
+      setGenError(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   async function markDone(id) {
     await supabase.from("reading_schedule").update({ completed: true }).eq("id", id);
     load();
@@ -72,9 +95,22 @@ export default function ScheduleClient() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <h1 style={s.title}>Reading Schedule</h1>
-        <span style={s.progress}>{completedThisWeek}/{totalThisWeek} this week</span>
+        <div>
+          <h1 style={s.title}>Reading Schedule</h1>
+          <span style={s.progress}>{completedThisWeek}/{totalThisWeek} this week</span>
+        </div>
+        <button
+          style={{ ...s.aiBtn, ...(generating ? s.aiBtnBusy : {}) }}
+          onClick={generateSchedule}
+          disabled={generating}
+          title="Let Claude plan your week based on your library and reading time"
+        >
+          {generating ? "Generating…" : "✦ Plan with AI"}
+        </button>
       </div>
+
+      {genNote  && <p style={s.genNote}>{genNote}</p>}
+      {genError && <p style={s.genErr}>{genError} — <Link href="/settings" style={{ color: "var(--accent)" }}>check reading time in Settings</Link></p>}
 
       <div style={s.weekNav}>
         <button style={s.navBtn} onClick={() => setOffset((o) => o - 1)}>← Prev</button>
@@ -105,7 +141,7 @@ export default function ScheduleClient() {
       {error   && <p style={{ ...s.empty, color: "var(--accent)" }}>Error: {error}</p>}
 
       {!loading && !error && activeItems.length === 0 ? (
-        <p style={s.empty}>Nothing scheduled — open a comic and add it to your schedule.</p>
+        <p style={s.empty}>Nothing scheduled — hit "Plan with AI" to generate a week, or open a comic and add it manually.</p>
       ) : !loading && !error && (
         <div style={s.list}>
           {activeItems.map((item) => (
@@ -136,29 +172,48 @@ export default function ScheduleClient() {
 }
 
 const s = {
-  page:         { maxWidth: 680 },
-  header:       { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 20 },
-  title:        { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
-  progress:     { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)" },
-  weekNav:      { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  navBtn:       { background: "none", color: "var(--accent)", fontWeight: 600, fontSize: 14, cursor: "pointer" },
-  weekLabel:    { color: "var(--text-soft)", fontSize: 13 },
-  dayStrip:     { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 20 },
-  dayBtn:       { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  dayBtnActive: { background: "var(--accent)", borderColor: "var(--accent)" },
-  dayLabel:     { color: "var(--text-soft)", fontSize: 12, fontWeight: 600 },
-  dayCount:     { background: "var(--hero-gold)", color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
-  dayCountDone: { background: "var(--hero-cyan)" },
+  page:          { maxWidth: 680 },
+  header:        { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 },
+  title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
+  progress:      { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)", display: "block", marginTop: 2 },
+
+  aiBtn: {
+    background:    "var(--accent)",
+    color:         "#fff",
+    border:        "none",
+    borderRadius:  10,
+    padding:       "10px 18px",
+    fontWeight:    700,
+    fontSize:      13,
+    cursor:        "pointer",
+    whiteSpace:    "nowrap",
+    flexShrink:    0,
+    marginTop:     4,
+  },
+  aiBtnBusy:     { opacity: 0.6, cursor: "wait" },
+
+  genNote: { color: "var(--hero-cyan)", fontSize: 13, marginBottom: 12, fontWeight: 600 },
+  genErr:  { color: "var(--accent)",    fontSize: 13, marginBottom: 12 },
+
+  weekNav:       { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  navBtn:        { background: "none", color: "var(--accent)", fontWeight: 600, fontSize: 14, cursor: "pointer" },
+  weekLabel:     { color: "var(--text-soft)", fontSize: 13 },
+  dayStrip:      { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 20 },
+  dayBtn:        { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
+  dayBtnActive:  { background: "var(--accent)", borderColor: "var(--accent)" },
+  dayLabel:      { color: "var(--text-soft)", fontSize: 12, fontWeight: 600 },
+  dayCount:      { background: "var(--hero-gold)", color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
+  dayCountDone:  { background: "var(--hero-cyan)" },
   activeDateLabel: { color: "var(--text-faint)", fontSize: 12, marginBottom: 12 },
-  empty:        { color: "var(--text-soft)", padding: "40px 0" },
-  list:         { display: "flex", flexDirection: "column", gap: 10 },
-  schedRow:     { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "1px solid var(--border)" },
-  schedRowDone: { opacity: 0.5 },
-  cover:        { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
-  series:       { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
-  comicTitle:   { color: "var(--text)", fontWeight: 600, fontSize: 14, display: "block", marginTop: 2 },
-  actions:      { display: "flex", alignItems: "center", gap: 8 },
-  doneBtn:      { background: "var(--hero-cyan)", color: "#000", fontWeight: 700, fontSize: 14, width: 28, height: 28, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
-  doneTag:      { color: "var(--hero-cyan)", fontSize: 11, fontWeight: 700 },
-  removeBtn:    { background: "none", color: "var(--text-faint)", fontSize: 14, cursor: "pointer", padding: "4px" },
+  empty:         { color: "var(--text-soft)", padding: "40px 0" },
+  list:          { display: "flex", flexDirection: "column", gap: 10 },
+  schedRow:      { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "1px solid var(--border)" },
+  schedRowDone:  { opacity: 0.5 },
+  cover:         { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
+  series:        { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  comicTitle:    { color: "var(--text)", fontWeight: 600, fontSize: 14, display: "block", marginTop: 2 },
+  actions:       { display: "flex", alignItems: "center", gap: 8 },
+  doneBtn:       { background: "var(--hero-cyan)", color: "#000", fontWeight: 700, fontSize: 14, width: 28, height: 28, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  doneTag:       { color: "var(--hero-cyan)", fontSize: 11, fontWeight: 700 },
+  removeBtn:     { background: "none", color: "var(--text-faint)", fontSize: 14, cursor: "pointer", padding: "4px" },
 };

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -11,16 +10,17 @@ function getWednesday(offset = 0) {
   return d.toISOString().split("T")[0];
 }
 
+const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const DEFAULT_PRICE = 3.99;
 
 export default function ReleasesClient() {
-  const [releases, setReleases]         = useState([]);
-  const [pullVolumeSet, setPullVolumeSet] = useState(new Set());
-  const [seriesIdMap, setSeriesIdMap]   = useState({});
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState(null);
-  const [weekOffset, setOffset]         = useState(0);
-  const [toggling, setToggling]         = useState(null);
+  const [releases, setReleases]       = useState([]);
+  const [pullVolumeSet, setPullSet]   = useState(new Set());
+  const [seriesIdMap, setSeriesIdMap] = useState({});
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [weekOffset, setOffset]       = useState(0);
+  const [toggling, setToggling]       = useState(null);
 
   const wednesday = getWednesday(weekOffset);
 
@@ -31,33 +31,43 @@ export default function ReleasesClient() {
     Promise.all([
       fetch(`/api/releases?date=${wednesday}`).then(r => r.json()),
       supabase.from("pull_list")
-        .select("series_id, series:series_id(comicvine_id)")
+        .select("series_id, series:series_id(name, comicvine_id)")
         .eq("active", true),
     ]).then(([{ releases: r, pullMatches }, { data: pl }]) => {
-      setReleases(r ?? []);
+      const releaseList = r ?? [];
+      setReleases(releaseList);
+
+      // Build cv_id → series_db_id via name matching (works for LOCG + ComicVine)
       const map = {};
       (pl ?? []).forEach(entry => {
-        if (entry.series?.comicvine_id) map[entry.series.comicvine_id] = entry.series_id;
+        const sName = entry.series?.name;
+        if (!sName) return;
+        // Prefer exact comicvine_id match
+        const cvMatch = releaseList.find(rel => rel.volume_cv_id && rel.volume_cv_id === entry.series.comicvine_id);
+        if (cvMatch) { map[cvMatch.cv_id] = entry.series_id; return; }
+        // Fall back to name match
+        const nameMatch = releaseList.find(rel => normalize(rel.series_name) === normalize(sName));
+        if (nameMatch) map[nameMatch.cv_id] = entry.series_id;
       });
+
       setSeriesIdMap(map);
-      // Merge API matches (volume_cv_ids) with DB pull list
-      const merged = new Set([...(pullMatches ?? []), ...Object.keys(map)]);
-      setPullVolumeSet(merged);
+      setPullSet(new Set([...(pullMatches ?? []), ...Object.keys(map)]));
     }).catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [wednesday]);
 
   async function togglePullList(release) {
-    const { volume_cv_id, series_name, publisher, cover_url } = release;
-    setToggling(volume_cv_id);
+    const uid = release.cv_id;
+    const { series_name, publisher, cover_url, volume_cv_id } = release;
+    setToggling(uid);
     try {
-      if (pullVolumeSet.has(volume_cv_id)) {
-        const seriesId = seriesIdMap[volume_cv_id];
+      if (pullVolumeSet.has(uid)) {
+        const seriesId = seriesIdMap[uid];
         if (seriesId) {
           await supabase.from("pull_list").update({ active: false }).eq("series_id", seriesId);
         }
-        setPullVolumeSet(prev => { const s = new Set(prev); s.delete(volume_cv_id); return s; });
-        setSeriesIdMap(prev => { const m = { ...prev }; delete m[volume_cv_id]; return m; });
+        setPullSet(prev => { const s = new Set(prev); s.delete(uid); return s; });
+        setSeriesIdMap(prev => { const m = { ...prev }; delete m[uid]; return m; });
       } else {
         const { data: { user } } = await supabase.auth.getUser();
 
@@ -74,7 +84,7 @@ export default function ReleasesClient() {
             user_id:      user.id,
             publisher_id: publisherId,
             name:         series_name,
-            comicvine_id: volume_cv_id,
+            comicvine_id: volume_cv_id || null,
             cover_url,
           }, { onConflict: "user_id,name" })
           .select("id").single();
@@ -82,16 +92,16 @@ export default function ReleasesClient() {
         await supabase.from("pull_list")
           .upsert({ user_id: user.id, series_id: ser.id, active: true }, { onConflict: "user_id,series_id" });
 
-        setPullVolumeSet(prev => new Set([...prev, volume_cv_id]));
-        setSeriesIdMap(prev => ({ ...prev, [volume_cv_id]: ser.id }));
+        setPullSet(prev => new Set([...prev, uid]));
+        setSeriesIdMap(prev => ({ ...prev, [uid]: ser.id }));
       }
     } finally {
       setToggling(null);
     }
   }
 
-  const pullReleases  = releases.filter(r => pullVolumeSet.has(r.volume_cv_id));
-  const otherReleases = releases.filter(r => !pullVolumeSet.has(r.volume_cv_id));
+  const pullReleases  = releases.filter(r => pullVolumeSet.has(r.cv_id));
+  const otherReleases = releases.filter(r => !pullVolumeSet.has(r.cv_id));
   const weeklySpend   = pullReleases.reduce((sum, r) => sum + (r.price ?? DEFAULT_PRICE), 0);
 
   return (
@@ -120,7 +130,7 @@ export default function ReleasesClient() {
               </div>
               {pullReleases.map(r => (
                 <ReleaseRow key={r.cv_id} release={r} isPulled
-                  isToggling={toggling === r.volume_cv_id}
+                  isToggling={toggling === r.cv_id}
                   onToggle={() => togglePullList(r)} />
               ))}
             </section>
@@ -131,7 +141,7 @@ export default function ReleasesClient() {
               <h2 style={s.sectionHead}>All Releases ({otherReleases.length})</h2>
               {otherReleases.map(r => (
                 <ReleaseRow key={r.cv_id} release={r}
-                  isToggling={toggling === r.volume_cv_id}
+                  isToggling={toggling === r.cv_id}
                   onToggle={() => togglePullList(r)} />
               ))}
             </section>

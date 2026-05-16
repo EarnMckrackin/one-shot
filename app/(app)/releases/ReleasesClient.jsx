@@ -33,8 +33,8 @@ export default function ReleasesClient() {
       .finally(() => setLoading(false));
   }, [wednesday]);
 
-  const pullReleases  = releases.filter((r) => pullSet.has(r.league_id));
-  const otherReleases = releases.filter((r) => !pullSet.has(r.league_id));
+  const pullReleases  = releases.filter((r) => pullSet.has(r.cv_id));
+  const otherReleases = releases.filter((r) => !pullSet.has(r.cv_id));
 
   return (
     <div style={s.page}>
@@ -57,14 +57,14 @@ export default function ReleasesClient() {
           {pullReleases.length > 0 && (
             <section>
               <h2 style={s.sectionHead}>Your Pull List ({pullReleases.length})</h2>
-              {pullReleases.map((r) => <ReleaseRow key={r.league_id} release={r} highlight />)}
+              {pullReleases.map((r) => <ReleaseRow key={r.cv_id} release={r} highlight />)}
             </section>
           )}
 
           {otherReleases.length > 0 && (
             <section style={{ marginTop: 24 }}>
               <h2 style={s.sectionHead}>All Releases ({otherReleases.length})</h2>
-              {otherReleases.map((r) => <ReleaseRow key={r.league_id} release={r} />)}
+              {otherReleases.map((r) => <ReleaseRow key={r.cv_id} release={r} />)}
             </section>
           )}
 

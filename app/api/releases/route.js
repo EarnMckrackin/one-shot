@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase";
-import { fetchWeeklyReleases, matchReleasesToPullList } from "../../../lib/league";
+import { getWeeklyReleases } from "../../../lib/comicvine";
 
 export async function GET(request) {
   const supabase = await createClient();
@@ -8,23 +8,26 @@ export async function GET(request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date") ?? null;
+  const date = searchParams.get("date") ?? new Date().toISOString().split("T")[0];
 
   let releases = [];
   try {
-    releases = await fetchWeeklyReleases(date);
-  } catch {
-    return NextResponse.json({ releases: [], pullMatches: [], warning: "Weekly releases unavailable" });
+    releases = await getWeeklyReleases(date);
+  } catch (e) {
+    return NextResponse.json({ releases: [], pullMatches: [], warning: e.message });
   }
 
-  // Get user's pull list series names for matching
   const { data: pullList } = await supabase
     .from("pull_list")
     .select("series:series_id ( name )")
     .eq("active", true);
 
-  const seriesNames = (pullList ?? []).map((i) => i.series?.name).filter(Boolean);
-  const pullMatches = matchReleasesToPullList(releases, seriesNames).map((r) => r.league_id);
+  const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalizedPull = (pullList ?? []).map((i) => normalize(i.series?.name));
+
+  const pullMatches = releases
+    .filter((r) => normalizedPull.some((n) => n && normalize(r.series_name || r.title).includes(n)))
+    .map((r) => r.cv_id);
 
   return NextResponse.json({ releases, pullMatches });
 }

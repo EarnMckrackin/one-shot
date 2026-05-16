@@ -7,12 +7,17 @@ import { C } from "../../../../lib/theme";
 
 export default function ComicDetailClient({ comic: initial }) {
   const router = useRouter();
-  const [comic, setComic]       = useState(initial);
-  const [logOpen, setLogOpen]   = useState(false);
-  const [schedOpen, setSchedOpen] = useState(false);
-  const [notes, setNotes]       = useState("");
-  const [schedDate, setSchedDate] = useState("");
-  const [saving, setSaving]     = useState(false);
+  const [comic, setComic]           = useState(initial);
+  const [logOpen, setLogOpen]       = useState(false);
+  const [schedOpen, setSchedOpen]   = useState(false);
+  const [notes, setNotes]           = useState("");
+  const [schedDate, setSchedDate]   = useState("");
+  const [saving, setSaving]         = useState(false);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
+  const [altCovers, setAltCovers]   = useState([]);
+  const [fetchingCovers, setFetchingCovers] = useState(false);
+  const [customCoverUrl, setCustomCoverUrl] = useState("");
+  const [savingCover, setSavingCover] = useState(false);
 
   const readLog   = comic.reading_log ?? [];
   const readCount = readLog.length;
@@ -50,6 +55,39 @@ export default function ComicDetailClient({ comic: initial }) {
     setSaving(false);
   }
 
+  async function openCoverPicker() {
+    setCoverPickerOpen(true);
+    setAltCovers([]);
+    setCustomCoverUrl("");
+    setFetchingCovers(true);
+    const query = [comic.series?.name ?? comic.title, comic.issue_number && `#${comic.issue_number}`]
+      .filter(Boolean).join(" ");
+    try {
+      const res  = await fetch("/api/scan", {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify({ query }),
+      });
+      const data = await res.json();
+      const covers = (data.results ?? [])
+        .filter(r => r.cover_url)
+        .map(r => ({ url: r.cover_url, label: `${r.series_name ?? r.title}${r.issue_number ? ` #${r.issue_number}` : ""}` }));
+      // Dedupe by URL
+      const seen = new Set();
+      setAltCovers(covers.filter(c => { if (seen.has(c.url)) return false; seen.add(c.url); return true; }));
+    } catch {}
+    setFetchingCovers(false);
+  }
+
+  async function saveCover(url) {
+    if (!url?.trim()) return;
+    setSavingCover(true);
+    await supabase.from("comics").update({ cover_url: url }).eq("id", comic.id);
+    setComic(c => ({ ...c, cover_url: url }));
+    setCoverPickerOpen(false);
+    setSavingCover(false);
+  }
+
   async function handleDelete() {
     if (!confirm("Remove this comic from your library?")) return;
     await supabase.from("comics").delete().eq("id", comic.id);
@@ -66,6 +104,7 @@ export default function ComicDetailClient({ comic: initial }) {
             ? <img src={comic.cover_url} alt={comic.title} style={s.cover} />
             : <div style={{ ...s.cover, ...s.coverPlaceholder }}>No cover</div>
           }
+          <button style={s.changeCoverBtn} onClick={openCoverPicker}>Change Cover</button>
         </div>
 
         <div style={s.meta}>
@@ -115,6 +154,47 @@ export default function ComicDetailClient({ comic: initial }) {
           )}
         </div>
       </div>
+
+      {coverPickerOpen && (
+        <div style={s.pickerPanel}>
+          <div style={s.pickerHeader}>
+            <h2 style={s.pickerTitle}>Choose a Cover</h2>
+            <button style={s.pickerClose} onClick={() => setCoverPickerOpen(false)}>✕</button>
+          </div>
+
+          {fetchingCovers && <p style={s.pickerHint}>Searching for covers…</p>}
+
+          {!fetchingCovers && altCovers.length > 0 && (
+            <div style={s.coverGrid}>
+              {altCovers.map((c, i) => (
+                <button key={i} style={s.coverGridItem} onClick={() => saveCover(c.url)} disabled={savingCover} title={c.label}>
+                  <img src={c.url} alt={c.label} style={s.coverGridImg} loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!fetchingCovers && altCovers.length === 0 && (
+            <p style={s.pickerHint}>No alternative covers found — paste a URL below.</p>
+          )}
+
+          <div style={s.customUrlRow}>
+            <input
+              value={customCoverUrl}
+              onChange={e => setCustomCoverUrl(e.target.value)}
+              placeholder="Or paste an image URL…"
+              style={s.customUrlInput}
+            />
+            <button
+              style={s.customUrlBtn}
+              onClick={() => saveCover(customCoverUrl)}
+              disabled={savingCover || !customCoverUrl.trim()}
+            >
+              {savingCover ? "Saving…" : "Use"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {comic.description && (
         <div style={s.section}>
@@ -181,4 +261,20 @@ const s = {
   logNotes:      { color: "var(--text-faint)", fontSize: 13 },
   deleteBtn:     { background: "none", color: "var(--text-faint)", fontSize: 13, cursor: "pointer", marginTop: 32, padding: "10px 0", display: "block" },
   rescanBtn:     { background: "var(--bg-surface)", color: "var(--text-soft)", padding: "11px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, border: "1px solid var(--border)", display: "inline-block" },
+
+  changeCoverBtn: { display: "block", width: "100%", marginTop: 8, background: "none", border: "1px solid var(--border)", color: "var(--text-faint)", fontSize: 12, padding: "6px 0", borderRadius: 8, cursor: "pointer" },
+
+  pickerPanel:   { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 28 },
+  pickerHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  pickerTitle:   { fontSize: 16, fontWeight: 700 },
+  pickerClose:   { background: "none", border: "none", color: "var(--text-faint)", fontSize: 18, cursor: "pointer", padding: "0 4px" },
+  pickerHint:    { color: "var(--text-faint)", fontSize: 13, marginBottom: 16 },
+
+  coverGrid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 10, marginBottom: 16 },
+  coverGridItem: { background: "none", border: "2px solid transparent", borderRadius: 8, padding: 0, cursor: "pointer", overflow: "hidden", transition: "border-color 120ms" },
+  coverGridImg:  { width: "100%", aspectRatio: "2/3", objectFit: "cover", display: "block", borderRadius: 6 },
+
+  customUrlRow:  { display: "flex", gap: 8, marginTop: 8 },
+  customUrlInput:{ flex: 1, fontSize: 13, padding: "9px 12px", borderRadius: 10, background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text)", outline: "none" },
+  customUrlBtn:  { background: "var(--accent)", color: "#fff", padding: "9px 16px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "none", whiteSpace: "nowrap" },
 };

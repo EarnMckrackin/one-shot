@@ -1,0 +1,16 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "comicvine.gamespot.com" },
+      { protocol: "https", hostname: "*.cloudinary.com" },
+      { protocol: "https", hostname: "leagueofcomicgeeks.com" },
+      { protocol: "https", hostname: "*.supabase.co" },
+    ],
+  },
+  experimental: {
+    serverActions: { allowedOrigins: ["localhost:3000"] },
+  },
+};
+
+module.exports = nextConfig;

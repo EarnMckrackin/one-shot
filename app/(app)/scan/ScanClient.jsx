@@ -1,13 +1,16 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 import { C } from "../../../lib/theme";
 
 const MODES = ["Camera", "Upload Image", "Upload PDF"];
 
 export default function ScanClient() {
-  const router   = useRouter();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const replaceId    = searchParams.get("replace");
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [mode, setMode]         = useState("Camera");
@@ -132,6 +135,25 @@ export default function ScanClient() {
         seriesId = ser?.id;
       }
 
+      if (replaceId) {
+        const { error } = await supabase.from("comics").update({
+          series_id:    seriesId,
+          publisher_id: publisherId,
+          title:        result.title,
+          issue_number: result.issue_number,
+          comicvine_id: result.comicvine_id,
+          cover_url:    result.cover_url,
+          description:  result.description,
+          release_date: result.release_date,
+          writers:      result.writers,
+          artists:      result.artists,
+          characters:   result.characters,
+        }).eq("id", replaceId);
+        if (error) throw error;
+        router.push(`/comic/${replaceId}`);
+        return;
+      }
+
       const { data: comic, error } = await supabase.from("comics").insert({
         user_id:      user.id,
         series_id:    seriesId,
@@ -210,7 +232,8 @@ export default function ScanClient() {
 
   return (
     <div style={s.page}>
-      <h1 style={s.title}>Scan Cover</h1>
+      {replaceId && <Link href={`/comic/${replaceId}`} style={{ color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 16 }}>← Back to comic</Link>}
+      <h1 style={s.title}>{replaceId ? "Re-identify Cover" : "Scan Cover"}</h1>
 
       <div style={s.modeBar}>
         {MODES.map((m) => (
@@ -287,7 +310,7 @@ export default function ScanClient() {
       {/* Results */}
       {results.length > 0 && !scanning && !searching && (
         <div>
-          <h2 style={s.resultsHeader}>Select the correct issue</h2>
+          <h2 style={s.resultsHeader}>{replaceId ? "Select the correct match — this will update your comic" : "Select the correct issue"}</h2>
           <div style={s.resultsList}>
             {results.map((r, i) => (
               <button key={r.comicvine_id ?? r.metron_id ?? i} style={s.resultRow} onClick={() => addComicToLibrary(r)} disabled={adding}>

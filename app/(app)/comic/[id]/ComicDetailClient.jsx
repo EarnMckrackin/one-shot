@@ -91,6 +91,7 @@ export default function ComicDetailClient({ comic: initial }) {
             {comic.has_pdf && comic.drive_view_url && (
               <a href={comic.drive_view_url} target="_blank" rel="noopener noreferrer" style={s.pdfBtn}>Open PDF</a>
             )}
+            <Link href={`/scan?replace=${comic.id}`} style={s.rescanBtn}>Re-identify</Link>
           </div>
 
           {logOpen && (
@@ -179,4 +180,5 @@ const s = {
   logDate:       { color: "var(--text-soft)", fontSize: 13, flexShrink: 0 },
   logNotes:      { color: "var(--text-faint)", fontSize: 13 },
   deleteBtn:     { background: "none", color: "var(--text-faint)", fontSize: 13, cursor: "pointer", marginTop: 32, padding: "10px 0", display: "block" },
+  rescanBtn:     { background: "var(--bg-surface)", color: "var(--text-soft)", padding: "11px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, border: "1px solid var(--border)", display: "inline-block" },
 };

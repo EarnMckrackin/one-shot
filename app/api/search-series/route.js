@@ -21,9 +21,15 @@ export async function GET(request) {
   const unique = cvResults.filter((r) => !seen.has(normalize(r.name)));
 
   const yearSuffix = /\.\d{4}$/;
-  const results = [...metronResults, ...unique].filter(
-    (r) => !yearSuffix.test(r.name) && (r.issue_count === undefined || r.issue_count > 0)
+  const merged = [...metronResults, ...unique].filter(
+    (r) => r.name && !yearSuffix.test(r.name) && (r.issue_count == null || r.issue_count > 0)
   );
 
-  return NextResponse.json({ results });
+  console.log("[search-series]", {
+    q, metron: metron.status, metronLen: metronResults.length,
+    cv: cv.status, cvLen: cvResults.length, mergedLen: merged.length,
+    sample: merged.slice(0, 2).map(r => ({ name: r.name, publisher: r.publisher, start_year: r.start_year })),
+  });
+
+  return NextResponse.json({ results: merged });
 }

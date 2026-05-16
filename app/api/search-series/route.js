@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase";
-import { searchSeries } from "../../../lib/metron";
+import { searchSeries as metronSearch } from "../../../lib/metron";
+import { searchSeries as cvSearch } from "../../../lib/comicvine";
 
 export async function GET(request) {
   const supabase = await createClient();
@@ -10,6 +11,14 @@ export async function GET(request) {
   const q = new URL(request.url).searchParams.get("q");
   if (!q) return NextResponse.json({ results: [] });
 
-  const results = await searchSeries(q);
-  return NextResponse.json({ results });
+  const [metron, cv] = await Promise.allSettled([metronSearch(q), cvSearch(q)]);
+
+  const metronResults = metron.status === "fulfilled" ? metron.value : [];
+  const cvResults     = cv.status === "fulfilled"     ? cv.value     : [];
+
+  const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const seen = new Set(metronResults.map((r) => normalize(r.name)));
+  const unique = cvResults.filter((r) => !seen.has(normalize(r.name)));
+
+  return NextResponse.json({ results: [...metronResults, ...unique] });
 }

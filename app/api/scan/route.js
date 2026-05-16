@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase";
-import { searchComics } from "../../../lib/metron";
+import { searchComics as metronSearch } from "../../../lib/metron";
+import { searchComics as cvSearch } from "../../../lib/comicvine";
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -55,7 +56,17 @@ Use null for anything unreadable.`,
   const query = [extracted.series, extracted.issue && `#${extracted.issue}`]
     .filter(Boolean).join(" ");
 
-  const results = query.trim() ? await searchComics(query) : [];
+  let results = [];
+  if (query.trim()) {
+    const [metron, cv] = await Promise.allSettled([metronSearch(query), cvSearch(query)]);
+    const metronResults = metron.status === "fulfilled" ? metron.value : [];
+    const cvResults     = cv.status === "fulfilled"     ? cv.value     : [];
+
+    const normalize = (r) => `${(r.series_name ?? r.title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")}|${r.issue_number ?? ""}`;
+    const seen = new Set(metronResults.map(normalize));
+    const unique = cvResults.filter((r) => !seen.has(normalize(r)));
+    results = [...metronResults, ...unique];
+  }
 
   return NextResponse.json({ extracted, results });
 }

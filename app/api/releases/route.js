@@ -10,7 +10,12 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date") ?? null;
 
-  const releases = await fetchWeeklyReleases(date);
+  let releases = [];
+  try {
+    releases = await fetchWeeklyReleases(date);
+  } catch {
+    return NextResponse.json({ releases: [], pullMatches: [], warning: "Weekly releases unavailable" });
+  }
 
   // Get user's pull list series names for matching
   const { data: pullList } = await supabase

@@ -38,10 +38,12 @@ export default function ScanClient() {
   async function captureFrame() {
     const video  = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+    const MAX    = 900;
+    const scale  = Math.min(1, MAX / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width  = Math.round(video.videoWidth  * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
   }
 
   async function scanImage(base64) {
@@ -54,8 +56,10 @@ export default function ScanClient() {
         body:    JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       setExtracted(data.extracted);
       setResults(data.results ?? []);
+      if (!data.results?.length) alert("Cover recognised but no matching issues found. Try Upload Image with a clearer photo.");
     } catch (e) {
       alert("Scan failed: " + e.message);
     } finally {
@@ -261,8 +265,8 @@ export default function ScanClient() {
         <div>
           <h2 style={s.resultsHeader}>Select the correct issue</h2>
           <div style={s.resultsList}>
-            {results.map((r) => (
-              <button key={r.comicvine_id} style={s.resultRow} onClick={() => addComicToLibrary(r)} disabled={adding}>
+            {results.map((r, i) => (
+              <button key={r.comicvine_id ?? r.metron_id ?? i} style={s.resultRow} onClick={() => addComicToLibrary(r)} disabled={adding}>
                 {r.cover_url && <img src={r.cover_url} alt={r.title} style={s.resultCover} />}
                 <div style={{ textAlign: "left" }}>
                   <p style={s.resultSeries}>{r.series_name}</p>
@@ -286,7 +290,7 @@ const s = {
   chip:          { padding: "7px 16px", borderRadius: 20, background: C.card, border: `1px solid ${C.border}`, color: C.textSoft, fontSize: 13, cursor: "pointer" },
   chipActive:    { background: C.accent, borderColor: C.accent, color: "#fff", fontWeight: 700 },
   cameraSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
-  viewfinder:    { width: "100%", maxWidth: 400, aspectRatio: "4/3", background: C.surface, borderRadius: 12, overflow: "hidden", position: "relative", border: `1px solid ${C.border}` },
+  viewfinder:    { width: "100%", maxWidth: 320, aspectRatio: "2/3", background: C.surface, borderRadius: 12, overflow: "hidden", position: "relative", border: `1px solid ${C.border}` },
   video:         { width: "100%", height: "100%", objectFit: "cover" },
   scanFrame:     { position: "absolute", inset: "10%", border: `2px solid ${C.accent}`, borderRadius: 8, pointerEvents: "none" },
   primaryBtn:    { background: C.accent, color: "#fff", padding: "13px 28px", borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: "pointer", border: "none", display: "inline-block" },

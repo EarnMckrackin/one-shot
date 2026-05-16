@@ -24,6 +24,8 @@ export default function ScheduleClient() {
   const [weekOffset, setOffset]   = useState(0);
   const [schedule, setSchedule]   = useState([]);
   const [selectedDay, setDay]     = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
 
   const monday = getWeekMonday(weekOffset);
 
@@ -37,14 +39,18 @@ export default function ScheduleClient() {
   const activeItems = schedule.filter((s) => s.scheduled_for === activeDate);
 
   async function load() {
+    setLoading(true);
+    setError(null);
     const end = addDays(monday, 6);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("reading_schedule")
       .select("*, comic:comic_id( id, title, issue_number, cover_url, series:series_id( name ) )")
       .gte("scheduled_for", monday)
       .lte("scheduled_for", end)
       .order("scheduled_for");
+    if (error) setError(error.message);
     setSchedule(data ?? []);
+    setLoading(false);
   }
 
   useEffect(() => { load(); setDay(null); }, [weekOffset]);
@@ -95,9 +101,12 @@ export default function ScheduleClient() {
 
       <p style={s.activeDateLabel}>{activeDate}</p>
 
-      {activeItems.length === 0 ? (
+      {loading && <p style={s.empty}>Loading…</p>}
+      {error   && <p style={{ ...s.empty, color: C.accent }}>Error: {error}</p>}
+
+      {!loading && !error && activeItems.length === 0 ? (
         <p style={s.empty}>Nothing scheduled — open a comic and add it to your schedule.</p>
-      ) : (
+      ) : !loading && !error && (
         <div style={s.list}>
           {activeItems.map((item) => (
             <div key={item.id} style={{ ...s.schedRow, ...(item.completed ? s.schedRowDone : {}) }}>

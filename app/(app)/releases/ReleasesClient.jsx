@@ -4,10 +4,11 @@ import { supabase } from "../../../lib/supabase-browser";
 
 function getWednesday(offset = 0) {
   const d = new Date();
-  const day = d.getDay(); // 0=Sun … 3=Wed … 6=Sat
+  const anchor = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+  const day = anchor.getDay(); // 0=Sun … 3=Wed … 6=Sat
   const daysSinceWed = (day - 3 + 7) % 7; // 0 on Wed, 1 on Thu, etc.
-  d.setDate(d.getDate() - daysSinceWed + offset * 7);
-  return d.toISOString().split("T")[0];
+  anchor.setDate(anchor.getDate() - daysSinceWed + offset * 7);
+  return formatDate(anchor);
 }
 
 const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -21,21 +22,27 @@ export default function ReleasesClient() {
   const [error, setError]             = useState(null);
   const [weekOffset, setOffset]       = useState(0);
   const [toggling, setToggling]       = useState(null);
+  const [source, setSource]           = useState(null);
+  const [warning, setWarning]         = useState(null);
 
   const wednesday = getWednesday(weekOffset);
+  const weekLabel = formatWeekLabel(wednesday);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setWarning(null);
 
     Promise.all([
       fetch(`/api/releases?date=${wednesday}`).then(r => r.json()),
       supabase.from("pull_list")
         .select("series_id, series:series_id(name, comicvine_id)")
         .eq("active", true),
-    ]).then(([{ releases: r, pullMatches }, { data: pl }]) => {
+    ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }]) => {
       const releaseList = r ?? [];
       setReleases(releaseList);
+      setSource(releaseSource ?? null);
+      setWarning(releaseWarning ?? null);
 
       // Build cv_id → series_db_id via name matching (works for LOCG + ComicVine)
       const map = {};
@@ -108,7 +115,7 @@ export default function ReleasesClient() {
     <div style={s.page}>
       <div style={s.header}>
         <h1 style={s.title}>Releases</h1>
-        <span style={s.date}>{wednesday}</span>
+        <span style={s.date}>{weekLabel}</span>
       </div>
 
       <div style={s.weekNav}>
@@ -119,6 +126,8 @@ export default function ReleasesClient() {
 
       {loading && <p style={s.msg}>Loading releases…</p>}
       {error   && <p style={{ ...s.msg, color: "var(--accent)" }}>{error}</p>}
+      {!loading && !error && warning && <p style={s.note}>Fallback source in use. {warning}</p>}
+      {!loading && !error && source && <p style={s.source}>Source: {source}</p>}
 
       {!loading && !error && (
         <>
@@ -181,6 +190,20 @@ function ReleaseRow({ release, isPulled, isToggling, onToggle }) {
   );
 }
 
+function formatWeekLabel(dateStr) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const start = new Date(year, month - 1, day, 12);
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `Week of ${formatter.format(start)}`;
+}
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const s = {
   page:           { maxWidth: 720 },
   header:         { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16 },
@@ -189,6 +212,8 @@ const s = {
   weekNav:        { display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" },
   navBtn:         { padding: "8px 16px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text-soft)", cursor: "pointer", fontSize: 13 },
   msg:            { color: "var(--text-soft)", padding: "40px 0", textAlign: "center" },
+  note:           { color: "var(--hero-gold)", fontSize: 12, marginBottom: 8 },
+  source:         { color: "var(--text-faint)", fontSize: 12, marginBottom: 12 },
   sectionHeadRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 },
   sectionHead:    { color: "var(--text-faint)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" },
   weeklySpend:    { color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },

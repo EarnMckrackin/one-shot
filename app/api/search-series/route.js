@@ -20,5 +20,10 @@ export async function GET(request) {
   const seen = new Set(metronResults.map((r) => normalize(r.name)));
   const unique = cvResults.filter((r) => !seen.has(normalize(r.name)));
 
-  return NextResponse.json({ results: [...metronResults, ...unique] });
+  const yearSuffix = /\.\d{4}$/;
+  const results = [...metronResults, ...unique].filter(
+    (r) => !yearSuffix.test(r.name) && (r.issue_count === undefined || r.issue_count > 0)
+  );
+
+  return NextResponse.json({ results });
 }

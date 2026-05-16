@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase-browser";
-import { C } from "../../lib/theme";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +10,7 @@ export default function LoginPage() {
   const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
+  const [focused, setFocused]   = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -25,50 +25,139 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  const inkInput = (isFocused) => ({
+    fontFamily: "var(--font-body)", fontSize: 14,
+    background: "var(--bg-card)", color: "var(--text)",
+    border: `2px solid ${isFocused ? "var(--accent)" : "var(--ink-000)"}`,
+    borderRadius: 8, padding: "9px 12px", outline: "none", width: "100%",
+    boxShadow: `2px 2px 0 ${isFocused ? "var(--accent)" : "var(--ink-000)"}`,
+    transition: "border-color 120ms, box-shadow 120ms",
+  });
+
   return (
     <div style={s.page}>
-      <div style={s.card}>
-        <h1 style={s.logo}>One<span style={{ color: C.accent }}>Shot</span></h1>
-        <p style={s.tagline}>Your complete comic collection.</p>
+      <div style={{ position: "relative", padding: "22px 40px 22px 18px" }}>
+        <span style={s.stamp}>ISSUE Nº 1</span>
 
-        <form onSubmit={handleSubmit} style={s.form}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete={isSignup ? "new-password" : "current-password"}
-          />
-          {error && <p style={s.error}>{error}</p>}
-          <button type="submit" style={s.btn} disabled={loading}>
-            {loading ? "…" : isSignup ? "Create Account" : "Sign In"}
+        <div style={s.card}>
+          <div style={s.title}>
+            ONE
+            <span style={s.titleShot}>SHOT!</span>
+          </div>
+
+          <div style={s.rule} />
+          <p style={s.tagline}>YOUR COMPLETE COMIC COLLECTION.</p>
+
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ ...s.tag, color: "var(--ink-000)", background: "var(--hero-gold)" }}>EMAIL</span>
+              <input
+                type="email"
+                placeholder="reader@example.com"
+                value={email}
+                onFocus={() => setFocused("email")}
+                onBlur={() => setFocused(null)}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                style={inkInput(focused === "email")}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ ...s.tag, color: "#fff", background: "var(--hero-red)" }}>PASSWORD</span>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onFocus={() => setFocused("password")}
+                onBlur={() => setFocused(null)}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                style={inkInput(focused === "password")}
+              />
+            </div>
+            {error && <p style={s.error}>{error}</p>}
+            <button type="submit" style={s.btn} disabled={loading}>
+              {loading ? "…" : isSignup ? "CREATE ACCOUNT!" : "SIGN IN!"}
+            </button>
+          </form>
+
+          <button onClick={() => setIsSignup(!isSignup)} style={s.toggleWrap}>
+            <span style={s.toggleEyebrow}>{isSignup ? "ALREADY A READER?" : "NEW HERE?"}</span>
+            <span style={{ fontSize: 12, marginLeft: 8 }}>
+              {isSignup ? "Sign in instead" : "Create an account"}
+            </span>
           </button>
-        </form>
-
-        <button onClick={() => setIsSignup(!isSignup)} style={s.toggle}>
-          {isSignup ? "Already have an account? Sign in" : "New here? Create account"}
-        </button>
+        </div>
       </div>
     </div>
   );
 }
 
 const s = {
-  page:    { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: C.bg },
-  card:    { width: "100%", maxWidth: 400, background: C.surface, borderRadius: 16, padding: 40, border: `1px solid ${C.border}` },
-  logo:    { fontSize: 48, fontFamily: "Georgia, serif", fontWeight: 700, letterSpacing: -1, marginBottom: 8 },
-  tagline: { color: C.textSoft, marginBottom: 32 },
-  form:    { display: "flex", flexDirection: "column", gap: 12 },
-  error:   { color: C.accent, fontSize: 14 },
-  btn:     { background: C.accent, color: "#fff", padding: "13px 24px", borderRadius: 10, fontWeight: 700, fontSize: 15, marginTop: 4, cursor: "pointer" },
-  toggle:  { display: "block", color: C.textSoft, fontSize: 14, marginTop: 16, textAlign: "center", cursor: "pointer", background: "none", border: "none", width: "100%" },
+  page: {
+    minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+    padding: 40, background: "var(--bg)",
+    backgroundImage: "var(--halftone-dots)", backgroundSize: "var(--halftone-size)",
+  },
+  stamp: {
+    position: "absolute", top: 4, right: 4, zIndex: 2,
+    fontFamily: "var(--font-burst)", fontSize: 18, letterSpacing: "0.12em",
+    color: "var(--ink-000)", background: "var(--hero-gold)",
+    padding: "5px 14px 3px",
+    border: "2.5px solid var(--ink-000)",
+    boxShadow: "3px 3px 0 var(--ink-000)",
+    transform: "rotate(6deg)",
+    whiteSpace: "nowrap",
+  },
+  card: {
+    width: 420, maxWidth: "calc(100vw - 80px)",
+    background: "var(--bg-surface)",
+    backgroundImage: "repeating-linear-gradient(135deg, transparent 0 10px, rgba(255,255,255,0.025) 10px 11px)",
+    border: "2.5px solid var(--ink-000)",
+    boxShadow: "5px 5px 0 var(--ink-000)",
+    borderRadius: 8, padding: "30px 30px 24px",
+  },
+  title: {
+    fontFamily: "var(--font-display)", fontSize: 80, lineHeight: 0.82,
+    letterSpacing: "-0.04em", textTransform: "uppercase",
+    color: "var(--text)", textShadow: "4px 4px 0 var(--ink-000)",
+  },
+  titleShot: {
+    color: "var(--accent)", display: "block",
+    transform: "translateX(24px)",
+  },
+  rule:    { height: 4, background: "var(--ink-000)", margin: "14px 0 8px" },
+  tagline: {
+    fontFamily: "var(--font-burst)", fontSize: 12, letterSpacing: "0.2em",
+    color: "var(--hero-gold)", marginBottom: 22,
+  },
+  tag: {
+    alignSelf: "flex-start",
+    fontFamily: "var(--font-burst)", fontSize: 11, letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    padding: "2px 10px 1px",
+    border: "1.5px solid var(--ink-000)", borderBottom: "none",
+    borderRadius: "4px 4px 0 0",
+    marginLeft: 12, position: "relative", zIndex: 1,
+  },
+  error: { color: "var(--accent)", fontSize: 13 },
+  btn: {
+    marginTop: 10, padding: "11px 20px 9px", width: "100%",
+    background: "var(--accent)", color: "#fff",
+    fontFamily: "var(--font-burst)", fontSize: 20, letterSpacing: "0.14em",
+    border: "2.5px solid var(--ink-000)", borderRadius: 8,
+    boxShadow: "4px 4px 0 var(--ink-000)", cursor: "pointer",
+  },
+  toggleWrap: {
+    display: "block", color: "var(--text-soft)",
+    marginTop: 18, textAlign: "center", background: "none", border: "none",
+    width: "100%", cursor: "pointer", fontFamily: "var(--font-body)",
+    borderTop: "1.5px solid var(--ink-000)", paddingTop: 12,
+  },
+  toggleEyebrow: {
+    fontFamily: "var(--font-burst)", fontSize: 11, letterSpacing: "0.14em",
+    color: "var(--hero-cyan)",
+  },
 };

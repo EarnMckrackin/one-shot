@@ -92,7 +92,7 @@ export default function StatsClient() {
     load();
   }, []);
 
-  if (loading) return <p style={{ color: C.textFaint, padding: 40 }}>Crunching your collection…</p>;
+  if (loading) return <p style={{ color: "var(--text-faint)", padding: 40, fontFamily: "var(--font-body)" }}>Crunching your collection…</p>;
 
   const { totalComics, totalRead, publishers, last12, maxMonthCount, streak, readThisMonth, readLastMonth, topSeries, totalLogs } = stats;
 
@@ -102,11 +102,11 @@ export default function StatsClient() {
 
       {/* Top-line numbers */}
       <div style={s.topStats}>
-        <BigStat label="In Library" val={totalComics} />
-        <BigStat label="Unique Read" val={totalRead} accent={C.cyan} />
-        <BigStat label="Total Reads" val={totalLogs} />
-        <BigStat label="Day Streak"  val={streak} accent={C.gold} suffix="🔥" />
-        <BigStat label="This Month"  val={readThisMonth} note={readLastMonth ? `${readLastMonth} last month` : null} />
+        <StatTile label="In Library"  val={totalComics} />
+        <StatTile label="Unique Read" val={totalRead}      accent="var(--hero-cyan)" />
+        <StatTile label="Total Reads" val={totalLogs} />
+        <StatTile label="Day Streak"  val={streak}        accent="var(--hero-gold)" suffix="🔥" hot />
+        <StatTile label="This Month"  val={readThisMonth} note={readLastMonth ? `${readLastMonth} last mo.` : null} />
       </div>
 
       {/* Monthly bar chart */}
@@ -149,11 +149,11 @@ export default function StatsClient() {
           <section style={s.section}>
             <h2 style={s.sectionTitle}>Most Read Series</h2>
             <div style={s.seriesList}>
-              {topSeries.map((s, i) => (
-                <div key={s.name} style={seriesRowStyle}>
-                  <span style={{ color: C.textFaint, fontSize: 12, width: 20 }}>{i + 1}</span>
-                  <span style={{ color: C.text, fontSize: 14, flex: 1 }}>{s.name}</span>
-                  <span style={{ color: C.gold, fontWeight: 700, fontSize: 14 }}>{s.count}</span>
+              {topSeries.map((ser, i) => (
+                <div key={ser.name} style={seriesRowStyle}>
+                  <span style={{ color: "var(--text-faint)", fontSize: 12, width: 20, fontFamily: "var(--font-mono)" }}>{i + 1}</span>
+                  <span style={{ color: "var(--text)", fontSize: 14, flex: 1 }}>{ser.name}</span>
+                  <span style={{ color: "var(--hero-gold)", fontFamily: "var(--font-burst)", fontSize: 16 }}>{ser.count}</span>
                 </div>
               ))}
             </div>
@@ -164,38 +164,66 @@ export default function StatsClient() {
   );
 }
 
-const seriesRowStyle = { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}` };
+const seriesRowStyle = { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" };
 
-function BigStat({ label, val, accent, suffix, note }) {
+function StatTile({ label, val, accent, suffix, note, hot }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "20px 24px", flex: 1, minWidth: 120 }}>
-      <p style={{ color: accent ?? C.text, fontSize: 32, fontWeight: 800, lineHeight: 1 }}>
-        {val}{suffix && <span style={{ fontSize: 20 }}> {suffix}</span>}
+    <div style={{
+      position: "relative", overflow: "hidden",
+      background: "var(--bg-card)",
+      backgroundImage: "var(--halftone-dots)", backgroundSize: "var(--halftone-size)",
+      border: "2.5px solid var(--ink-000)",
+      borderRadius: 10,
+      boxShadow: "3px 3px 0 var(--ink-000)",
+      padding: "18px 22px", flex: 1, minWidth: 120,
+    }}>
+      {hot && (
+        <span style={{
+          position: "absolute", top: 6, right: -4,
+          fontFamily: "var(--font-burst)", fontSize: 10, letterSpacing: "0.12em",
+          color: "#fff", background: "var(--accent)",
+          padding: "2px 8px 1px",
+          border: "1.5px solid var(--ink-000)",
+          boxShadow: "2px 2px 0 var(--ink-000)",
+          transform: "rotate(8deg)",
+          whiteSpace: "nowrap",
+        }}>HOT</span>
+      )}
+      <p style={{
+        color: accent ?? "var(--text)",
+        fontFamily: "var(--font-burst)", fontSize: 38,
+        letterSpacing: "0.02em", lineHeight: 1, whiteSpace: "nowrap",
+      }}>
+        {val}{suffix && <span style={{ fontSize: 22, marginLeft: 4 }}>{suffix}</span>}
       </p>
-      <p style={{ color: C.textFaint, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 6 }}>{label}</p>
-      {note && <p style={{ color: C.textFaint, fontSize: 11, marginTop: 4 }}>{note}</p>}
+      <p style={{
+        fontFamily: "var(--font-burst)", fontSize: 11,
+        letterSpacing: "0.12em", textTransform: "uppercase",
+        color: "var(--text-soft)", marginTop: 8,
+      }}>{label}</p>
+      {note && <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 4 }}>{note}</p>}
     </div>
   );
 }
 
 const s = {
   page:        { maxWidth: 900 },
-  title:       { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 28 },
+  title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 28 },
   topStats:    { display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" },
-  section:     { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24, flex: 1 },
-  sectionTitle:{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 20 },
+  section:     { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, flex: 1 },
+  sectionTitle:{ color: "var(--text)", fontSize: 16, fontWeight: 700, marginBottom: 20 },
   twoCol:      { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 },
   barChart:    { display: "flex", gap: 8, alignItems: "flex-end", height: 160 },
   barCol:      { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 },
-  barCount:    { color: C.textSoft, fontSize: 10 },
-  barTrack:    { flex: 1, width: "100%", background: C.card, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "flex-end" },
-  barFill:     { width: "100%", background: C.accent, borderRadius: "4px 4px 0 0", transition: "height 0.4s", minHeight: 2 },
-  barLabel:    { color: C.textFaint, fontSize: 9, textAlign: "center", lineHeight: 1.2 },
+  barCount:    { color: "var(--text-faint)", fontSize: 10, fontFamily: "var(--font-mono)" },
+  barTrack:    { flex: 1, width: "100%", background: "var(--bg-card)", borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "flex-end" },
+  barFill:     { width: "100%", background: "var(--accent)", borderRadius: "4px 4px 0 0", transition: "height 0.4s", minHeight: 2 },
+  barLabel:    { color: "var(--text-faint)", fontSize: 9, textAlign: "center", lineHeight: 1.2 },
   pubList:     { display: "flex", flexDirection: "column", gap: 10 },
   pubRow:      { display: "flex", alignItems: "center", gap: 10 },
-  pubName:     { color: C.textSoft, fontSize: 13, width: 100, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  pubBarTrack: { flex: 1, height: 6, background: C.card, borderRadius: 3, overflow: "hidden" },
-  pubBarFill:  { height: "100%", background: C.cyan, borderRadius: 3 },
-  pubCount:    { color: C.textFaint, fontSize: 12, width: 32, textAlign: "right" },
+  pubName:     { color: "var(--text-soft)", fontSize: 13, width: 100, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  pubBarTrack: { flex: 1, height: 6, background: "var(--bg-card)", borderRadius: 3, overflow: "hidden" },
+  pubBarFill:  { height: "100%", background: "var(--hero-cyan)", borderRadius: 3 },
+  pubCount:    { color: "var(--text-faint)", fontSize: 12, width: 32, textAlign: "right" },
   seriesList:  { display: "flex", flexDirection: "column" },
 };

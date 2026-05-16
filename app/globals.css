@@ -1,9 +1,137 @@
+/* Google Fonts ─────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=DM+Serif+Display:ital@0;1&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;600;700&display=swap");
+
+/* Design Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  /* RAW PALETTE — Inks */
+  --ink-000: #050507;
+  --ink-100: #0a0a0f;
+  --ink-200: #13131a;
+  --ink-300: #1c1c26;
+  --ink-400: #2a2a38;
+  --ink-500: #3a3a4d;
+
+  /* RAW PALETTE — Newsprint */
+  --paper-50:  #fdfbf5;
+  --paper-100: #f6efe1;
+  --paper-200: #e6dec8;
+  --paper-700: #2a2418;
+
+  /* RAW PALETTE — Four-color heroic */
+  --hero-red:     #ef2b3d;
+  --hero-red-dk:  #cc2030;
+  --hero-red-lt:  #ff5365;
+  --hero-gold:    #ffd166;
+  --hero-gold-dk: #e0b04a;
+  --hero-cyan:    #06d6a0;
+  --hero-cyan-dk: #04a87f;
+  --hero-blue:    #2e7dd7;
+  --hero-magenta: #ff2e88;
+
+  /* RAW PALETTE — Foreground grays */
+  --fg-1: #f0f0f5;
+  --fg-2: #c8c8d4;
+  --fg-3: #9090a8;
+  --fg-4: #5a5a70;
+  --fg-5: #3a3a4d;
+
+  /* SEMANTIC ALIASES — use these in components */
+  --bg:          var(--ink-100);
+  --bg-surface:  var(--ink-200);
+  --bg-card:     var(--ink-300);
+  --bg-elevated: #20202c;
+  --border:      var(--ink-400);
+  --border-hov:  var(--ink-500);
+  --accent:      var(--hero-red);
+  --accent-hov:  var(--hero-red-dk);
+  --accent-on:   #ffffff;
+  --positive:    var(--hero-cyan);
+  --warning:     var(--hero-gold);
+  --danger:      var(--hero-magenta);
+  --info:        var(--hero-blue);
+  --text:        var(--fg-1);
+  --text-soft:   var(--fg-3);
+  --text-faint:  var(--fg-4);
+
+  /* LEGACY ALIASES — backward compat with lib/theme.js C.* constants */
+  --c-bg:           var(--ink-100);
+  --c-surface:      var(--ink-200);
+  --c-card:         var(--ink-300);
+  --c-border:       var(--ink-400);
+  --c-accent:       var(--hero-red);
+  --c-accent-hover: var(--hero-red-dk);
+  --c-gold:         var(--hero-gold);
+  --c-cyan:         var(--hero-cyan);
+  --c-text:         var(--fg-1);
+  --c-text-soft:    var(--fg-3);
+  --c-text-faint:   var(--fg-4);
+
+  /* TYPE — Families */
+  --font-display: "Anton", "Oswald", Impact, sans-serif;
+  --font-burst:   "Bangers", "Anton", Impact, sans-serif;
+  --font-serif:   "DM Serif Display", "Playfair Display", Georgia, serif;
+  --font-body:    "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  /* TYPE — Scale */
+  --fs-2xs: 10px;  --fs-xs: 11px;   --fs-sm: 12px;
+  --fs-md:  13px;  --fs-base: 14px; --fs-lg: 15px;
+  --fs-xl:  17px;  --fs-2xl: 20px;  --fs-3xl: 24px;
+  --fs-4xl: 32px;  --fs-5xl: 48px;  --fs-6xl: 72px;
+
+  --lh-tight: 1.1;  --lh-snug: 1.25;  --lh-base: 1.5;  --lh-loose: 1.7;
+  --tracking-tight: -0.02em;  --tracking-loose: 0.05em;  --tracking-stamp: 0.12em;
+
+  /* SPACING */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* RADII */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   12px;
+  --radius-xl:   14px;
+  --radius-2xl:  20px;
+  --radius-pill: 999px;
+
+  /* BORDERS */
+  --bw-hair: 1px;  --bw-bold: 2px;  --bw-ink: 3px;
+
+  /* SHADOWS */
+  --shadow-1:      0 1px 0 rgba(0,0,0,0.4);
+  --shadow-2:      0 4px 16px rgba(0,0,0,0.4);
+  --shadow-3:      0 12px 40px rgba(0,0,0,0.55);
+  --shadow-ink:    4px 4px 0 var(--ink-000);
+  --shadow-ink-sm: 2px 2px 0 var(--ink-000);
+  --shadow-cyan:   0 0 0 2px rgba(6,214,160,0.25);
+  --shadow-red:    0 0 0 2px rgba(239,43,61,0.30);
+
+  /* MOTION */
+  --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snap: cubic-bezier(0.5, 1.8, 0.4, 1);
+  --dur-fast:  120ms;
+  --dur-base:  180ms;
+  --dur-slow:  320ms;
+
+  /* TEXTURES */
+  --halftone-dots:      radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.2px);
+  --halftone-size:      6px 6px;
+  --halftone-dots-red:  radial-gradient(rgba(239,43,61,0.18) 1px, transparent 1.2px);
+  --halftone-dots-gold: radial-gradient(rgba(255,209,102,0.18) 1px, transparent 1.2px);
+  --hatch-dark: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255,255,255,0.03) 6px 7px);
+  --paper-grain: radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / 3px 3px,
+                 linear-gradient(180deg, var(--paper-100), var(--paper-50));
+}
+
+/* Reset ─────────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  background:  #0a0a0f;
-  color:       #f0f0f5;
-  font-family: "Instrument Sans", system-ui, sans-serif;
+  background:  var(--bg);
+  color:       var(--text);
+  font-family: var(--font-body);
   font-size:   16px;
   line-height: 1.5;
   height:      100%;
@@ -15,25 +143,87 @@ a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 
 input, textarea, select {
-  font-family: inherit;
-  font-size:   inherit;
-  background:  #1c1c26;
-  color:       #f0f0f5;
-  border:      1px solid #2a2a38;
-  border-radius: 10px;
-  padding:     10px 14px;
-  outline:     none;
-  width:       100%;
+  font-family:   inherit;
+  font-size:     inherit;
+  background:    var(--bg-card);
+  color:         var(--text);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding:       10px 14px;
+  outline:       none;
+  width:         100%;
 }
 
 input:focus, textarea:focus {
-  border-color: #e63946;
+  border-color: var(--accent);
 }
 
-/* Scrollbars */
+/* Scrollbars ─────────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* Utility */
+/* Utilities ─────────────────────────────────────────────────────────────────── */
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+.cp-panel {
+  background:    var(--bg-card);
+  border:        var(--bw-ink) solid var(--ink-000);
+  border-radius: var(--radius-lg);
+  box-shadow:    var(--shadow-ink);
+}
+
+.cp-halftone {
+  background-color: var(--bg-card);
+  background-image: var(--halftone-dots);
+  background-size:  var(--halftone-size);
+}
+
+.t-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-6xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+}
+
+.t-h1 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+}
+
+.t-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-loose);
+  color: var(--text-faint);
+}
+
+.t-burst {
+  font-family: var(--font-burst);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-stamp);
+  color: var(--hero-gold);
+}
+
+.t-stamp {
+  font-family: var(--font-burst);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tracking-stamp);
+  color: var(--ink-000);
+  background: var(--hero-gold);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+/* Animations ─────────────────────────────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

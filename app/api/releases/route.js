@@ -19,15 +19,20 @@ export async function GET(request) {
 
   const { data: pullList } = await supabase
     .from("pull_list")
-    .select("series:series_id ( name )")
+    .select("series:series_id ( name, comicvine_id )")
     .eq("active", true);
 
   const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const pullCvIds = new Set((pullList ?? []).map(i => i.series?.comicvine_id).filter(Boolean));
   const normalizedPull = (pullList ?? []).map((i) => normalize(i.series?.name));
 
+  // Match by volume ComicVine ID (reliable) or series name (fallback)
   const pullMatches = releases
-    .filter((r) => normalizedPull.some((n) => n && normalize(r.series_name || r.title).includes(n)))
-    .map((r) => r.cv_id);
+    .filter((r) =>
+      (r.volume_cv_id && pullCvIds.has(r.volume_cv_id)) ||
+      normalizedPull.some((n) => n && normalize(r.series_name || r.title).includes(n))
+    )
+    .map((r) => r.volume_cv_id || r.cv_id);
 
   return NextResponse.json({ releases, pullMatches });
 }

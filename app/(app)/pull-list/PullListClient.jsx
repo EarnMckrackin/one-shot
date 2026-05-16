@@ -117,7 +117,7 @@ export default function PullListClient() {
           <div key={item.id} style={s.pullRow}>
             {item.series?.cover_url
               ? <img src={item.series.cover_url} alt={item.series.name} style={s.seriesCover} loading="lazy" />
-              : <div style={{ ...s.seriesCover, background: C.card }} />
+              : <div style={{ ...s.seriesCover, background: "var(--bg-card)" }} />
             }
             <div style={{ flex: 1 }}>
               <p style={s.seriesName}>{item.series?.name}</p>
@@ -127,7 +127,7 @@ export default function PullListClient() {
           </div>
         ))}
         {items.length === 0 && (
-          <p style={{ color: C.textSoft, padding: "40px 0", textAlign: "center" }}>
+          <p style={{ color: "var(--text-soft)", padding: "40px 0", textAlign: "center" }}>
             Search for a series above to start your pull list
           </p>
         )}
@@ -138,22 +138,22 @@ export default function PullListClient() {
 
 const s = {
   page:        { maxWidth: 640 },
-  title:       { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 4 },
-  sub:         { color: C.textFaint, fontSize: 14, marginBottom: 24 },
+  title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
+  sub:         { color: "var(--text-faint)", fontSize: 14, marginBottom: 24 },
   searchRow:   { display: "flex", gap: 10, marginBottom: 20 },
-  searchBtn:   { background: C.accent, color: "#fff", padding: "10px 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
-  resultsPanel:{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 20, overflow: "hidden" },
-  resultsLabel:{ color: C.textSoft, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, padding: "12px 16px", borderBottom: `1px solid ${C.border}` },
-  resultRow:   { display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${C.border}` },
+  searchBtn:   { background: "var(--accent)", color: "#fff", padding: "10px 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
+  resultsPanel:{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 20, overflow: "hidden" },
+  resultsLabel:{ color: "var(--text-soft)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", padding: "12px 16px", borderBottom: "1px solid var(--border)" },
+  resultRow:   { display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--border)" },
   resultCover: { width: 36, height: 54, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
-  resultName:  { color: C.text, fontWeight: 600, fontSize: 14 },
-  resultMeta:  { color: C.textFaint, fontSize: 12 },
-  addBtn:      { background: "none", color: C.accent, fontSize: 24, fontWeight: 300, cursor: "pointer", lineHeight: 1, padding: "4px 8px" },
-  clearBtn:    { display: "block", width: "100%", background: "none", color: C.textFaint, padding: "10px", fontSize: 13, cursor: "pointer", borderTop: `1px solid ${C.border}` },
+  resultName:  { color: "var(--text)", fontWeight: 600, fontSize: 14 },
+  resultMeta:  { color: "var(--text-faint)", fontSize: 12 },
+  addBtn:      { background: "none", color: "var(--accent)", fontSize: 24, fontWeight: 300, cursor: "pointer", lineHeight: 1, padding: "4px 8px" },
+  clearBtn:    { display: "block", width: "100%", background: "none", color: "var(--text-faint)", padding: "10px", fontSize: 13, cursor: "pointer", borderTop: "1px solid var(--border)" },
   list:        { display: "flex", flexDirection: "column" },
-  pullRow:     { display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: `1px solid ${C.border}` },
+  pullRow:     { display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: "1px solid var(--border)" },
   seriesCover: { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
-  seriesName:  { color: C.text, fontWeight: 600, fontSize: 15 },
-  publisherName: { color: C.textFaint, fontSize: 12, marginTop: 2 },
-  removeBtn:   { background: "none", color: C.textFaint, fontSize: 16, cursor: "pointer", padding: "4px 8px" },
+  seriesName:  { color: "var(--text)", fontWeight: 600, fontSize: 15 },
+  publisherName: { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
+  removeBtn:   { background: "none", color: "var(--text-faint)", fontSize: 16, cursor: "pointer", padding: "4px 8px" },
 };

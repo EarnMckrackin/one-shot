@@ -130,7 +130,7 @@ export default function GapsClient() {
 
               {isOpen && series.gaps.length === 0 && (
                 <div style={s.gapList}>
-                  <p style={{ color: C.cyan, fontSize: 14 }}>✓ Complete run — no gaps</p>
+                  <p style={{ color: "var(--hero-cyan)", fontSize: 14 }}>✓ Complete run — no gaps</p>
                 </div>
               )}
             </div>
@@ -144,24 +144,24 @@ export default function GapsClient() {
 const s = {
   page:        { maxWidth: 760 },
   header:      { marginBottom: 20 },
-  title:       { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 4 },
-  sub:         { color: C.textFaint, fontSize: 14 },
+  title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
+  sub:         { color: "var(--text-faint)", fontSize: 14 },
   filterBar:   { display: "flex", gap: 8, marginBottom: 24 },
-  chip:        { padding: "6px 16px", borderRadius: 20, background: C.card, border: `1px solid ${C.border}`, color: C.textSoft, fontSize: 13, cursor: "pointer" },
-  chipActive:  { background: C.accent, borderColor: C.accent, color: "#fff", fontWeight: 700 },
-  msg:         { color: C.textSoft, padding: "40px 0" },
+  chip:        { fontFamily: "var(--font-display)", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", padding: "7px 16px 6px", borderRadius: 999, background: "transparent", color: "var(--text-soft)", border: "1.5px solid var(--border)", cursor: "pointer", transition: "all 120ms" },
+  chipActive:  { background: "var(--accent)", color: "#fff", border: "1.5px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", transform: "translate(-1px,-1px) rotate(-1.5deg)" },
+  msg:         { color: "var(--text-soft)", padding: "40px 0" },
   list:        { display: "flex", flexDirection: "column", gap: 8 },
-  card:        { background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" },
+  card:        { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" },
   cardHeader:  { display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", cursor: "pointer", background: "none", width: "100%", border: "none", textAlign: "left" },
-  seriesName:  { color: C.text, fontWeight: 600, fontSize: 15, marginBottom: 3 },
-  seriesMeta:  { color: C.textFaint, fontSize: 12 },
-  gapCount:    { color: C.accent, fontWeight: 600 },
+  seriesName:  { color: "var(--text)", fontWeight: 600, fontSize: 15, marginBottom: 3 },
+  seriesMeta:  { color: "var(--text-faint)", fontSize: 12 },
+  gapCount:    { color: "var(--accent)", fontWeight: 600 },
   progressWrap:{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
-  progressBar: { width: 80, height: 6, background: C.border, borderRadius: 3, overflow: "hidden" },
-  progressFill:{ height: "100%", background: C.cyan, borderRadius: 3, transition: "width 0.3s" },
-  pct:         { color: C.textFaint, fontSize: 11, width: 32, textAlign: "right" },
-  gapList:     { padding: "12px 18px 16px", borderTop: `1px solid ${C.border}` },
-  gapLabel:    { color: C.textSoft, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  progressBar: { width: 80, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" },
+  progressFill:{ height: "100%", background: "var(--hero-cyan)", borderRadius: 3, transition: "width 0.3s" },
+  pct:         { color: "var(--text-faint)", fontSize: 11, width: 32, textAlign: "right" },
+  gapList:     { padding: "12px 18px 16px", borderTop: "1px solid var(--border)" },
+  gapLabel:    { color: "var(--text-soft)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 },
   gapNums:     { display: "flex", flexWrap: "wrap", gap: 6 },
-  gapBadge:    { background: C.surface, border: `1px solid ${C.accent}`, color: C.accent, fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20 },
+  gapBadge:    { background: "var(--bg-surface)", border: "1px solid var(--accent)", color: "var(--accent)", fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20 },
 };

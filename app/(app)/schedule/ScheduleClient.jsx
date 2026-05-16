@@ -102,7 +102,7 @@ export default function ScheduleClient() {
       <p style={s.activeDateLabel}>{activeDate}</p>
 
       {loading && <p style={s.empty}>Loading…</p>}
-      {error   && <p style={{ ...s.empty, color: C.accent }}>Error: {error}</p>}
+      {error   && <p style={{ ...s.empty, color: "var(--accent)" }}>Error: {error}</p>}
 
       {!loading && !error && activeItems.length === 0 ? (
         <p style={s.empty}>Nothing scheduled — open a comic and add it to your schedule.</p>
@@ -112,7 +112,7 @@ export default function ScheduleClient() {
             <div key={item.id} style={{ ...s.schedRow, ...(item.completed ? s.schedRowDone : {}) }}>
               {item.comic?.cover_url
                 ? <img src={item.comic.cover_url} alt={item.comic.title} style={s.cover} loading="lazy" />
-                : <div style={{ ...s.cover, background: C.card }} />
+                : <div style={{ ...s.cover, background: "var(--bg-card)" }} />
               }
               <div style={{ flex: 1 }}>
                 <p style={s.series}>{item.comic?.series?.name}</p>
@@ -138,27 +138,27 @@ export default function ScheduleClient() {
 const s = {
   page:         { maxWidth: 680 },
   header:       { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 20 },
-  title:        { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700 },
-  progress:     { color: C.textFaint, fontSize: 14 },
+  title:        { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
+  progress:     { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)" },
   weekNav:      { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  navBtn:       { background: "none", color: C.accent, fontWeight: 600, fontSize: 14, cursor: "pointer" },
-  weekLabel:    { color: C.textSoft, fontSize: 13 },
+  navBtn:       { background: "none", color: "var(--accent)", fontWeight: 600, fontSize: 14, cursor: "pointer" },
+  weekLabel:    { color: "var(--text-soft)", fontSize: 13 },
   dayStrip:     { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 20 },
-  dayBtn:       { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  dayBtnActive: { background: C.accent, borderColor: C.accent },
-  dayLabel:     { color: C.textSoft, fontSize: 12, fontWeight: 600 },
-  dayCount:     { background: C.gold, color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
-  dayCountDone: { background: C.cyan },
-  activeDateLabel: { color: C.textFaint, fontSize: 12, marginBottom: 12 },
-  empty:        { color: C.textSoft, padding: "40px 0" },
+  dayBtn:       { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
+  dayBtnActive: { background: "var(--accent)", borderColor: "var(--accent)" },
+  dayLabel:     { color: "var(--text-soft)", fontSize: 12, fontWeight: 600 },
+  dayCount:     { background: "var(--hero-gold)", color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
+  dayCountDone: { background: "var(--hero-cyan)" },
+  activeDateLabel: { color: "var(--text-faint)", fontSize: 12, marginBottom: 12 },
+  empty:        { color: "var(--text-soft)", padding: "40px 0" },
   list:         { display: "flex", flexDirection: "column", gap: 10 },
-  schedRow:     { display: "flex", alignItems: "center", gap: 14, background: C.card, borderRadius: 12, padding: "12px 16px 12px 12px", border: `1px solid ${C.border}` },
+  schedRow:     { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "1px solid var(--border)" },
   schedRowDone: { opacity: 0.5 },
   cover:        { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
-  series:       { color: C.textFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
-  comicTitle:   { color: C.text, fontWeight: 600, fontSize: 14, display: "block", marginTop: 2 },
+  series:       { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  comicTitle:   { color: "var(--text)", fontWeight: 600, fontSize: 14, display: "block", marginTop: 2 },
   actions:      { display: "flex", alignItems: "center", gap: 8 },
-  doneBtn:      { background: C.cyan, color: "#000", fontWeight: 700, fontSize: 14, width: 28, height: 28, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
-  doneTag:      { color: C.cyan, fontSize: 11, fontWeight: 700 },
-  removeBtn:    { background: "none", color: C.textFaint, fontSize: 14, cursor: "pointer", padding: "4px" },
+  doneBtn:      { background: "var(--hero-cyan)", color: "#000", fontWeight: 700, fontSize: 14, width: 28, height: 28, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  doneTag:      { color: "var(--hero-cyan)", fontSize: 11, fontWeight: 700 },
+  removeBtn:    { background: "none", color: "var(--text-faint)", fontSize: 14, cursor: "pointer", padding: "4px" },
 };

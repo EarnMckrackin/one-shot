@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { C } from "../../../lib/theme";
+import { supabase } from "../../../lib/supabase-browser";
 
 const MODES = [
   { id: "catchup",     label: "Catch Me Up",   desc: "Recap story so far — no spoilers beyond what you've read" },
@@ -19,12 +20,20 @@ export default function CompassClient() {
   const [history, setHistory] = useState([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
+  const [hasComics, setHasComics] = useState(null);
   const bottomRef             = useRef(null);
   const inputRef              = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history]);
+
+  useEffect(() => {
+    supabase
+      .from("reading_log")
+      .select("id", { count: "exact", head: true })
+      .then(({ count }) => setHasComics((count ?? 0) > 0));
+  }, []);
 
   async function send(text) {
     const msg = text ?? input.trim();
@@ -88,7 +97,15 @@ export default function CompassClient() {
 
       {/* Chat window */}
       <div style={s.chatBox}>
-        {history.length === 0 && (
+        {history.length === 0 && hasComics === false && (
+          <div style={s.empty}>
+            <p style={s.emptyHead}>No reads logged yet</p>
+            <p style={s.emptySub}>Log some comics first — Compass learns from your reading history and can only give spoiler-safe answers once it knows what you've read.</p>
+            <a href="/library" style={s.onboardingBtn}>Go add comics →</a>
+          </div>
+        )}
+
+        {history.length === 0 && hasComics === true && (
           <div style={s.empty}>
             <p style={s.emptyHead}>Ask anything about your collection</p>
             <div style={s.starters}>
@@ -130,32 +147,42 @@ export default function CompassClient() {
 
 const s = {
   page:          { maxWidth: 760, display: "flex", flexDirection: "column", height: "calc(100vh - 80px)" },
-  title:         { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 4 },
-  sub:           { color: C.textFaint, fontSize: 14, marginBottom: 20 },
+  title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
+  sub:           { color: "var(--text-faint)", fontSize: 14, marginBottom: 20 },
 
   modeRow:       { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" },
-  modeBtn:       { flex: 1, minWidth: 180, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 },
-  modeBtnActive: { borderColor: C.accent, background: "#1c1018" },
-  modeLabel:     { color: C.text, fontWeight: 700, fontSize: 14 },
-  modeDesc:      { color: C.textFaint, fontSize: 11, lineHeight: 1.4 },
+  modeBtn:       { flex: 1, minWidth: 180, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 },
+  modeBtnActive: { borderColor: "var(--accent)", background: "#1c1018" },
+  modeLabel:     { color: "var(--text)", fontWeight: 700, fontSize: 13, fontFamily: "var(--font-body)" },
+  modeDesc:      { color: "var(--text-faint)", fontSize: 11, lineHeight: 1.4 },
 
-  chatBox:       { flex: 1, overflowY: "auto", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16, marginBottom: 12 },
+  chatBox:       { flex: 1, overflowY: "auto", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16, marginBottom: 12 },
 
-  empty:         { margin: "auto", textAlign: "center" },
-  emptyHead:     { color: C.textSoft, fontSize: 15, marginBottom: 20 },
+  empty:         { margin: "auto", textAlign: "center", maxWidth: 420 },
+  emptyHead:     { color: "var(--text-soft)", fontSize: 15, marginBottom: 12 },
+  emptySub:      { color: "var(--text-faint)", fontSize: 13, lineHeight: 1.6, marginBottom: 20 },
+  onboardingBtn: { display: "inline-block", background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 13, padding: "10px 20px", borderRadius: 10, cursor: "pointer" },
   starters:      { display: "flex", flexDirection: "column", gap: 10, alignItems: "center" },
-  starterBtn:    { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 18px", color: C.textSoft, fontSize: 13, cursor: "pointer", maxWidth: 400, width: "100%", textAlign: "left" },
+  starterBtn:    { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 18px", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", maxWidth: 400, width: "100%", textAlign: "left" },
 
   bubble:        { display: "flex", flexDirection: "column", gap: 6, maxWidth: "85%" },
-  bubbleUser:    { alignSelf: "flex-end", background: C.accent, borderRadius: "14px 14px 4px 14px", padding: "12px 16px" },
-  bubbleAI:      { alignSelf: "flex-start", background: C.card, border: `1px solid ${C.border}`, borderRadius: "14px 14px 14px 4px", padding: "12px 16px" },
-  aiTag:         { color: C.gold, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 },
-  bubbleText:    { color: C.text, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0 },
-  cursor:        { opacity: 0.7, animation: "blink 1s step-end infinite" },
+  bubbleUser:    { alignSelf: "flex-end", background: "var(--accent)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", borderRadius: "14px 14px 4px 14px", padding: "12px 16px" },
+  bubbleAI:      { alignSelf: "flex-start", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "14px 14px 14px 4px", padding: "12px 16px" },
+  aiTag:         {
+    alignSelf: "flex-start",
+    fontFamily: "var(--font-burst)", fontSize: 12, letterSpacing: "0.1em",
+    color: "var(--ink-000)", background: "var(--hero-gold)",
+    padding: "1px 8px", border: "1.5px solid var(--ink-000)",
+    boxShadow: "1px 1px 0 var(--ink-000)",
+    transform: "rotate(-4deg)", display: "inline-block",
+    textTransform: "uppercase",
+  },
+  bubbleText:    { color: "var(--text)", fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0 },
+  cursor:        { color: "var(--hero-red)", animation: "blink 1s step-end infinite" },
 
   inputRow:      { display: "flex", gap: 10, alignItems: "flex-end" },
-  textarea:      { flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, padding: "12px 16px", resize: "none", outline: "none", lineHeight: 1.5, fontFamily: "inherit" },
-  sendBtn:       { background: C.accent, color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px 22px", borderRadius: 12, cursor: "pointer", whiteSpace: "nowrap" },
+  textarea:      { flex: 1, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 14, padding: "12px 16px", resize: "none", outline: "none", lineHeight: 1.5, fontFamily: "inherit" },
+  sendBtn:       { background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px 22px", borderRadius: 12, cursor: "pointer", whiteSpace: "nowrap" },
   sendBtnDisabled: { opacity: 0.4, cursor: "default" },
-  hint:          { color: C.textFaint, fontSize: 11, textAlign: "center", marginTop: 6 },
+  hint:          { color: "var(--text-faint)", fontSize: 11, textAlign: "center", marginTop: 6 },
 };

@@ -42,7 +42,7 @@ export default function LibraryClient({ publishers, allSeries }) {
     <div>
       <div style={s.header}>
         <h1 style={s.title}>Library</h1>
-        <span style={s.count}>{comics.length} issues</span>
+        <span style={s.count}>{comics.length} ISSUES</span>
       </div>
 
       <input
@@ -54,7 +54,11 @@ export default function LibraryClient({ publishers, allSeries }) {
 
       <div style={s.viewBar}>
         {VIEWS.map((v) => (
-          <button key={v} style={{ ...s.chip, ...(view === v ? s.chipActive : {}) }} onClick={() => setView(v)}>
+          <button
+            key={v}
+            style={{ ...s.chip, ...(view === v ? s.chipActive : {}) }}
+            onClick={() => setView(v)}
+          >
             {v}
           </button>
         ))}
@@ -65,10 +69,11 @@ export default function LibraryClient({ publishers, allSeries }) {
           {publishers.map((p) => (
             <button
               key={p.id}
-              style={{ ...s.pubCard, ...(pubFilter === p.id ? { borderColor: C.accent } : {}) }}
+              style={{ ...s.pubCard, ...(pubFilter === p.id ? s.pubCardActive : {}) }}
               onClick={() => { setPubFilter(pubFilter === p.id ? "" : p.id); setView("All"); }}
             >
               <span style={s.pubName}>{p.name}</span>
+              <span style={s.pubCount}>{p.issue_count ?? ""}</span>
             </button>
           ))}
         </div>
@@ -76,9 +81,9 @@ export default function LibraryClient({ publishers, allSeries }) {
 
       {view === "Series" && (
         <div style={s.grid2}>
-          {filteredSeries.map((s) => (
-            <Link key={s.id} href={`/series/${s.id}`} style={s.pubCard}>
-              <span style={s.pubName}>{s.name}</span>
+          {filteredSeries.map((ser) => (
+            <Link key={ser.id} href={`/series/${ser.id}`} style={s.pubCard}>
+              <span style={s.pubName}>{ser.name}</span>
             </Link>
           ))}
         </div>
@@ -87,9 +92,9 @@ export default function LibraryClient({ publishers, allSeries }) {
       {(view === "All" || view === "Unread") && (
         <>
           {loading ? (
-            <p style={{ color: C.textFaint, padding: 40, textAlign: "center" }}>Loading…</p>
+            <p style={{ color: "var(--text-faint)", padding: 40, textAlign: "center" }}>Loading…</p>
           ) : displayed.length === 0 ? (
-            <p style={{ color: C.textSoft, padding: 40, textAlign: "center" }}>
+            <p style={{ color: "var(--text-soft)", padding: 40, textAlign: "center" }}>
               {search ? "No comics match your search." : "No comics yet — use Scan to add one."}
             </p>
           ) : (
@@ -122,24 +127,42 @@ export default function LibraryClient({ publishers, allSeries }) {
 }
 
 const s = {
-  header:          { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16 },
-  title:           { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700 },
-  count:           { color: C.textFaint, fontSize: 14 },
+  header:          { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, flexWrap: "nowrap" },
+  title:           { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, whiteSpace: "nowrap" },
+  count:           { color: "var(--text-faint)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", whiteSpace: "nowrap" },
   search:          { marginBottom: 12, maxWidth: 480 },
-  viewBar:         { display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" },
-  chip:            { padding: "6px 16px", borderRadius: 20, background: C.card, border: `1px solid ${C.border}`, color: C.textSoft, fontSize: 13, fontWeight: 500, cursor: "pointer" },
-  chipActive:      { background: C.accent, borderColor: C.accent, color: "#fff", fontWeight: 700 },
+  viewBar:         { display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" },
+
+  chip:            {
+    fontFamily: "var(--font-display)", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase",
+    padding: "7px 16px 6px", borderRadius: 999,
+    background: "transparent", color: "var(--text-soft)",
+    border: "1.5px solid var(--border)",
+    boxShadow: "none", transform: "none",
+    cursor: "pointer", transition: "all 120ms var(--ease-out)",
+  },
+  chipActive:      {
+    background: "var(--accent)", color: "#fff",
+    border: "1.5px solid var(--ink-000)",
+    boxShadow: "2px 2px 0 var(--ink-000)",
+    transform: "translate(-1px,-1px) rotate(-1.5deg)",
+  },
+
   grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 },
-  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 },
-  pubCard:         { background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, cursor: "pointer", display: "block" },
-  pubName:         { fontWeight: 600, fontSize: 15 },
-  card:            { background: C.card, borderRadius: 12, overflow: "hidden", display: "block" },
+  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 },
+
+  pubCard:         { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left" },
+  pubCardActive:   { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent)" },
+  pubName:         { fontWeight: 600, fontSize: 15, color: "var(--text)" },
+  pubCount:        { display: "block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" },
+
+  card:            { background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", display: "block" },
   coverWrap:       { position: "relative", paddingTop: "150%" },
   cover:           { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" },
-  coverPlaceholder:{ background: C.surface, color: C.textFaint, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
-  readBadge:       { position: "absolute", top: 6, right: 6, background: C.cyan, color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
-  pdfBadge:        { position: "absolute", bottom: 6, right: 6, background: C.gold, color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
-  info:            { padding: "8px 10px" },
-  series:          { color: C.textFaint, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
-  issueTitle:      { color: C.text, fontSize: 13, fontWeight: 600 },
+  coverPlaceholder:{ background: "var(--bg-surface)", color: "var(--text-faint)", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
+  readBadge:       { position: "absolute", top: 6, right: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
+  pdfBadge:        { position: "absolute", bottom: 6, right: 6, background: "var(--hero-gold)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
+  info:            { padding: "8px 10px 10px" },
+  series:          { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  issueTitle:      { color: "var(--text)", fontSize: 13, fontWeight: 600 },
 };

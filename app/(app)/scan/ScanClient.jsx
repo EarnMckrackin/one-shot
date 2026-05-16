@@ -18,6 +18,8 @@ export default function ScanClient() {
   const [adding, setAdding]     = useState(false);
   const [pdfFile, setPdfFile]   = useState(null);
   const [pdfDetails, setPdfDetails] = useState({ title: "", issue: "", series: "" });
+  const [manualQuery, setManualQuery] = useState("");
+  const [searching, setSearching]     = useState(false);
 
   async function startCamera() {
     try {
@@ -59,11 +61,33 @@ export default function ScanClient() {
       if (data.error) throw new Error(data.error);
       setExtracted(data.extracted);
       setResults(data.results ?? []);
-      if (!data.results?.length) alert("Cover recognised but no matching issues found. Try Upload Image with a clearer photo.");
+      const q = [data.extracted?.series, data.extracted?.issue && `#${data.extracted.issue}`].filter(Boolean).join(" ");
+      setManualQuery(q);
     } catch (e) {
       alert("Scan failed: " + e.message);
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function searchManually(e) {
+    e.preventDefault();
+    if (!manualQuery.trim()) return;
+    setSearching(true);
+    setResults([]);
+    try {
+      const res  = await fetch("/api/scan", {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify({ query: manualQuery.trim() }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResults(data.results ?? []);
+    } catch (e) {
+      alert("Search failed: " + e.message);
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -261,7 +285,7 @@ export default function ScanClient() {
       )}
 
       {/* Results */}
-      {results.length > 0 && (
+      {results.length > 0 && !scanning && !searching && (
         <div>
           <h2 style={s.resultsHeader}>Select the correct issue</h2>
           <div style={s.resultsList}>
@@ -276,7 +300,25 @@ export default function ScanClient() {
               </button>
             ))}
           </div>
-          <button style={s.ghostBtn} onClick={() => { setResults([]); setExtracted(null); }}>Start over</button>
+        </div>
+      )}
+
+      {/* Manual search — shown after any scan or when results are empty */}
+      {(extracted || results.length > 0 || (!scanning && !searching && manualQuery)) && (
+        <div style={s.manualSearch}>
+          <p style={s.manualLabel}>Not finding it? Search by title and issue number:</p>
+          <form onSubmit={searchManually} style={s.manualForm}>
+            <input
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              placeholder="e.g. Amazing Spider-Man #300"
+              style={s.manualInput}
+            />
+            <button type="submit" style={s.manualBtn} disabled={searching || !manualQuery.trim()}>
+              {searching ? "…" : "Search"}
+            </button>
+          </form>
+          <button style={s.ghostBtn} onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); }}>Start over</button>
         </div>
       )}
     </div>
@@ -309,5 +351,10 @@ const s = {
   resultSeries:  { color: C.textFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
   resultTitle:   { color: C.text, fontSize: 15, fontWeight: 600, marginTop: 2 },
   resultMeta:    { color: C.textFaint, fontSize: 12, marginTop: 4 },
-  ghostBtn:      { background: "none", border: `1px solid ${C.border}`, color: C.textSoft, padding: "10px 20px", borderRadius: 10, cursor: "pointer", fontSize: 14 },
+  ghostBtn:      { background: "none", border: `1px solid ${C.border}`, color: C.textSoft, padding: "10px 20px", borderRadius: 10, cursor: "pointer", fontSize: 14, marginTop: 8 },
+  manualSearch:  { marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 20 },
+  manualLabel:   { color: C.textFaint, fontSize: 13, marginBottom: 10 },
+  manualForm:    { display: "flex", gap: 8, marginBottom: 12 },
+  manualInput:   { flex: 1, fontSize: 14, padding: "9px 12px", borderRadius: 10, background: C.card, border: `1px solid ${C.border}`, color: C.text, outline: "none" },
+  manualBtn:     { background: C.accent, color: "#fff", padding: "9px 18px", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", border: "none", whiteSpace: "nowrap" },
 };

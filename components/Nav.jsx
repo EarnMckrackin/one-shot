@@ -9,6 +9,10 @@ const LINKS = [
   { href: "/releases",  label: "Releases"  },
   { href: "/pull-list", label: "Pull List" },
   { href: "/schedule",  label: "Schedule"  },
+  { href: "/gaps",      label: "Gap Tracker" },
+  { href: "/arcs",      label: "Reading Order" },
+  { href: "/stats",     label: "Stats"     },
+  { href: "/compass",   label: "Compass"   },
 ];
 
 export default function Nav() {

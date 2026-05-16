@@ -4,10 +4,10 @@ import { supabase } from "../../../lib/supabase-browser";
 import { C } from "../../../lib/theme";
 
 function getWednesday(offset = 0) {
-  const d   = new Date();
-  const day = d.getDay();
-  const diff = day <= 3 ? 3 - day : 10 - day;
-  d.setDate(d.getDate() + diff + offset * 7);
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun … 3=Wed … 6=Sat
+  const daysSinceWed = (day - 3 + 7) % 7; // 0 on Wed, 1 on Thu, etc.
+  d.setDate(d.getDate() - daysSinceWed + offset * 7);
   return d.toISOString().split("T")[0];
 }
 

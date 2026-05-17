@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
+import InkButton from "../../../components/InkButton";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -99,23 +100,24 @@ export default function ScheduleClient() {
           <h1 style={s.title}>Reading Schedule</h1>
           <span style={s.progress}>{completedThisWeek}/{totalThisWeek} this week</span>
         </div>
-        <button
-          style={{ ...s.aiBtn, ...(generating ? s.aiBtnBusy : {}) }}
+        <InkButton
+          variant="gold"
+          style={generating ? s.aiBtnBusy : undefined}
           onClick={generateSchedule}
           disabled={generating}
           title="Let Claude plan your week based on your library and reading time"
         >
           {generating ? "Generating…" : "✦ Plan with AI"}
-        </button>
+        </InkButton>
       </div>
 
       {genNote  && <p style={s.genNote}>{genNote}</p>}
       {genError && <p style={s.genErr}>{genError} — <Link href="/settings" style={{ color: "var(--accent)" }}>check reading time in Settings</Link></p>}
 
       <div style={s.weekNav}>
-        <button style={s.navBtn} onClick={() => setOffset((o) => o - 1)}>← Prev</button>
+        <InkButton variant="ghost" size="sm" onClick={() => setOffset((o) => o - 1)}>← Prev</InkButton>
         <span style={s.weekLabel}>{monday}</span>
-        <button style={s.navBtn} onClick={() => setOffset((o) => o + 1)}>Next →</button>
+        <InkButton variant="ghost" size="sm" onClick={() => setOffset((o) => o + 1)}>Next →</InkButton>
       </div>
 
       <div style={s.dayStrip}>
@@ -177,37 +179,23 @@ const s = {
   title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
   progress:      { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)", display: "block", marginTop: 2 },
 
-  aiBtn: {
-    background:    "var(--accent)",
-    color:         "#fff",
-    border:        "none",
-    borderRadius:  10,
-    padding:       "10px 18px",
-    fontWeight:    700,
-    fontSize:      13,
-    cursor:        "pointer",
-    whiteSpace:    "nowrap",
-    flexShrink:    0,
-    marginTop:     4,
-  },
   aiBtnBusy:     { opacity: 0.6, cursor: "wait" },
 
   genNote: { color: "var(--hero-cyan)", fontSize: 13, marginBottom: 12, fontWeight: 600 },
   genErr:  { color: "var(--accent)",    fontSize: 13, marginBottom: 12 },
 
   weekNav:       { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  navBtn:        { background: "none", color: "var(--accent)", fontWeight: 600, fontSize: 14, cursor: "pointer" },
   weekLabel:     { color: "var(--text-soft)", fontSize: 13 },
   dayStrip:      { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 20 },
-  dayBtn:        { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  dayBtnActive:  { background: "var(--accent)", borderColor: "var(--accent)" },
-  dayLabel:      { color: "var(--text-soft)", fontSize: 12, fontWeight: 600 },
-  dayCount:      { background: "var(--hero-gold)", color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
+  dayBtn:        { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, boxShadow: "2px 2px 0 var(--ink-000)" },
+  dayBtnActive:  { background: "var(--accent)", borderColor: "var(--ink-000)", backgroundImage: "var(--hatch-dark)" },
+  dayLabel:      { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, fontFamily: "var(--font-display)", letterSpacing: "0.04em" },
+  dayCount:      { background: "var(--hero-gold)", color: "#000", borderRadius: 10, minWidth: 18, height: 18, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", fontFamily: "var(--font-burst)", border: "1px solid var(--ink-000)" },
   dayCountDone:  { background: "var(--hero-cyan)" },
   activeDateLabel: { color: "var(--text-faint)", fontSize: 12, marginBottom: 12 },
   empty:         { color: "var(--text-soft)", padding: "40px 0" },
   list:          { display: "flex", flexDirection: "column", gap: 10 },
-  schedRow:      { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "1px solid var(--border)" },
+  schedRow:      { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)" },
   schedRowDone:  { opacity: 0.5 },
   cover:         { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   series:        { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },

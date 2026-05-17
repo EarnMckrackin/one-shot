@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
+import InkButton from "../../../components/InkButton";
 
 const MODES = ["Camera", "Upload Image", "Upload PDF"];
 
@@ -254,11 +254,11 @@ export default function ScanClient() {
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
           {!streaming ? (
-            <button style={s.primaryBtn} onClick={startCamera}>Start Camera</button>
+            <InkButton size="lg" onClick={startCamera}>Start Camera</InkButton>
           ) : (
-            <button style={s.primaryBtn} onClick={handleCaptureClick} disabled={scanning}>
+            <InkButton size="lg" onClick={handleCaptureClick} disabled={scanning}>
               {scanning ? "Scanning…" : "Capture & Identify"}
-            </button>
+            </InkButton>
           )}
           <p style={s.hint}>Point the camera at a comic cover and tap Capture</p>
         </div>
@@ -269,7 +269,7 @@ export default function ScanClient() {
         <div style={s.uploadSection}>
           <label style={s.uploadLabel}>
             <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
-            <span style={s.primaryBtn}>{scanning ? "Scanning…" : "Choose Image"}</span>
+            <InkButton as="span" size="lg">{scanning ? "Scanning…" : "Choose Image"}</InkButton>
           </label>
           <p style={s.hint}>Upload a photo of a comic cover to identify it</p>
         </div>
@@ -282,19 +282,19 @@ export default function ScanClient() {
             <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0])} style={{ display: "none" }} />
             <span style={s.uploadBtn}>{pdfFile ? pdfFile.name : "Choose PDF File"}</span>
           </label>
-          <input placeholder="Title (e.g. Amazing Spider-Man)" value={pdfDetails.title} onChange={(e) => setPdfDetails({ ...pdfDetails, title: e.target.value })} />
-          <input placeholder="Issue # (e.g. 42)" value={pdfDetails.issue} onChange={(e) => setPdfDetails({ ...pdfDetails, issue: e.target.value })} />
-          <input placeholder="Series name" value={pdfDetails.series} onChange={(e) => setPdfDetails({ ...pdfDetails, series: e.target.value })} />
+          <input className="ink-input" placeholder="Title (e.g. Amazing Spider-Man)" value={pdfDetails.title} onChange={(e) => setPdfDetails({ ...pdfDetails, title: e.target.value })} />
+          <input className="ink-input" placeholder="Issue # (e.g. 42)" value={pdfDetails.issue} onChange={(e) => setPdfDetails({ ...pdfDetails, issue: e.target.value })} />
+          <input className="ink-input" placeholder="Series name" value={pdfDetails.series} onChange={(e) => setPdfDetails({ ...pdfDetails, series: e.target.value })} />
           <p style={s.hint}>PDF will be uploaded to your Google Drive and linked to this comic.</p>
-          <button type="submit" style={s.primaryBtn} disabled={!pdfFile || adding}>
+          <InkButton type="submit" size="lg" disabled={!pdfFile || adding}>
             {adding ? "Uploading…" : "Add to Library"}
-          </button>
+          </InkButton>
         </form>
       )}
 
       {/* Scanning spinner */}
       {scanning && (
-        <p style={{ color: C.textSoft, textAlign: "center", padding: 32 }}>Identifying cover with AI…</p>
+        <p style={{ color: "var(--text-soft)", textAlign: "center", padding: 32 }}>Identifying cover with AI…</p>
       )}
 
       {/* Extracted info */}
@@ -332,16 +332,17 @@ export default function ScanClient() {
           <p style={s.manualLabel}>Not finding it? Search by title and issue number:</p>
           <form onSubmit={searchManually} style={s.manualForm}>
             <input
+              className="ink-input"
               value={manualQuery}
               onChange={(e) => setManualQuery(e.target.value)}
               placeholder="e.g. Amazing Spider-Man #300"
               style={s.manualInput}
             />
-            <button type="submit" style={s.manualBtn} disabled={searching || !manualQuery.trim()}>
+            <InkButton type="submit" size="md" disabled={searching || !manualQuery.trim()}>
               {searching ? "…" : "Search"}
-            </button>
+            </InkButton>
           </form>
-          <button style={s.ghostBtn} onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); }}>Start over</button>
+          <InkButton variant="ghost" size="sm" onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); }}>Start over</InkButton>
         </div>
       )}
     </div>
@@ -350,34 +351,31 @@ export default function ScanClient() {
 
 const s = {
   page:          { maxWidth: 600, margin: "0 auto" },
-  title:         { fontSize: 32, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 20 },
+  title:         { fontSize: 32, fontFamily: "var(--font-serif)", fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" },
   modeBar:       { display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" },
-  chip:          { padding: "7px 16px", borderRadius: 20, background: C.card, border: `1px solid ${C.border}`, color: C.textSoft, fontSize: 13, cursor: "pointer" },
-  chipActive:    { background: C.accent, borderColor: C.accent, color: "#fff", fontWeight: 700 },
+  chip:          { padding: "8px 16px 6px", borderRadius: 999, background: "var(--bg-card)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", fontFamily: "var(--font-burst)", letterSpacing: "0.1em", textTransform: "uppercase" },
+  chipActive:    { background: "var(--accent)", color: "#fff", transform: "rotate(-1.5deg)", backgroundImage: "var(--hatch-dark)" },
   cameraSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
-  viewfinder:    { width: "100%", maxWidth: 320, aspectRatio: "2/3", background: C.surface, borderRadius: 12, overflow: "hidden", position: "relative", border: `1px solid ${C.border}` },
+  viewfinder:    { width: "100%", maxWidth: 320, aspectRatio: "2/3", background: "var(--bg-surface)", borderRadius: 12, overflow: "hidden", position: "relative", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   video:         { width: "100%", height: "100%", objectFit: "cover" },
-  scanFrame:     { position: "absolute", inset: "10%", border: `2px solid ${C.accent}`, borderRadius: 8, pointerEvents: "none" },
-  primaryBtn:    { background: C.accent, color: "#fff", padding: "13px 28px", borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: "pointer", border: "none", display: "inline-block" },
-  hint:          { color: C.textFaint, fontSize: 13, textAlign: "center" },
+  scanFrame:     { position: "absolute", inset: "10%", border: "2px solid var(--accent)", borderRadius: 8, pointerEvents: "none", boxShadow: "0 0 0 2px rgba(239,43,61,0.2)" },
+  hint:          { color: "var(--text-faint)", fontSize: 13, textAlign: "center" },
   uploadSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "40px 0" },
   uploadLabel:   { cursor: "pointer" },
   pdfForm:       { display: "flex", flexDirection: "column", gap: 12, maxWidth: 420 },
-  uploadBtn:     { display: "inline-block", background: C.card, border: `1px solid ${C.border}`, color: C.text, padding: "12px 20px", borderRadius: 10, cursor: "pointer", fontWeight: 600 },
-  extracted:     { background: C.card, borderRadius: 10, padding: "12px 16px", marginBottom: 20, border: `1px solid ${C.border}` },
-  extractedLabel: { color: C.textFaint, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  extractedValue: { color: C.text, fontWeight: 600 },
-  resultsHeader: { fontSize: 16, fontWeight: 700, marginBottom: 12, color: C.textSoft },
+  uploadBtn:     { display: "inline-block", background: "var(--bg-card)", border: "2px solid var(--ink-000)", color: "var(--text)", padding: "12px 20px", borderRadius: 10, cursor: "pointer", fontWeight: 600, boxShadow: "2px 2px 0 var(--ink-000)" },
+  extracted:     { background: "var(--bg-card)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
+  extractedLabel: { color: "var(--text-faint)", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "var(--font-burst)" },
+  extractedValue: { color: "var(--text)", fontWeight: 600 },
+  resultsHeader: { fontSize: 16, fontWeight: 700, marginBottom: 12, color: "var(--text-soft)", fontFamily: "var(--font-display)", letterSpacing: "0.03em", textTransform: "uppercase" },
   resultsList:   { display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 },
-  resultRow:     { display: "flex", gap: 14, background: C.card, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, cursor: "pointer", textAlign: "left", padding: "10px 14px 10px 0", alignItems: "center" },
+  resultRow:     { display: "flex", gap: 14, background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer", textAlign: "left", padding: "10px 14px 10px 0", alignItems: "center" },
   resultCover:   { width: 60, height: 90, objectFit: "cover", flexShrink: 0 },
-  resultSeries:  { color: C.textFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
-  resultTitle:   { color: C.text, fontSize: 15, fontWeight: 600, marginTop: 2 },
-  resultMeta:    { color: C.textFaint, fontSize: 12, marginTop: 4 },
-  ghostBtn:      { background: "none", border: `1px solid ${C.border}`, color: C.textSoft, padding: "10px 20px", borderRadius: 10, cursor: "pointer", fontSize: 14, marginTop: 8 },
-  manualSearch:  { marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 20 },
-  manualLabel:   { color: C.textFaint, fontSize: 13, marginBottom: 10 },
+  resultSeries:  { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  resultTitle:   { color: "var(--text)", fontSize: 15, fontWeight: 600, marginTop: 2 },
+  resultMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 4 },
+  manualSearch:  { marginTop: 20, borderTop: "2px solid var(--ink-000)", paddingTop: 20 },
+  manualLabel:   { color: "var(--text-faint)", fontSize: 13, marginBottom: 10 },
   manualForm:    { display: "flex", gap: 8, marginBottom: 12 },
-  manualInput:   { flex: 1, fontSize: 14, padding: "9px 12px", borderRadius: 10, background: C.card, border: `1px solid ${C.border}`, color: C.text, outline: "none" },
-  manualBtn:     { background: C.accent, color: "#fff", padding: "9px 18px", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", border: "none", whiteSpace: "nowrap" },
+  manualInput:   { flex: 1 },
 };

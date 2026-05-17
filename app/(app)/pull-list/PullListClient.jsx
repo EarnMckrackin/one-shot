@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
+import InkButton from "../../../components/InkButton";
 
 export default function PullListClient() {
   const [items, setItems]         = useState([]);
@@ -83,14 +83,15 @@ export default function PullListClient() {
 
       <form onSubmit={handleSearch} style={s.searchRow}>
         <input
+          className="ink-input"
           placeholder="Search series to add (e.g. Saga, X-Men)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ flex: 1 }}
         />
-        <button type="submit" style={s.searchBtn} disabled={searching}>
+        <InkButton type="submit" disabled={searching}>
           {searching ? "…" : "Search"}
-        </button>
+        </InkButton>
       </form>
 
       {results.length > 0 && (
@@ -141,9 +142,8 @@ const s = {
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:         { color: "var(--text-faint)", fontSize: 14, marginBottom: 24 },
   searchRow:   { display: "flex", gap: 10, marginBottom: 20 },
-  searchBtn:   { background: "var(--accent)", color: "#fff", padding: "10px 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
-  resultsPanel:{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 20, overflow: "hidden" },
-  resultsLabel:{ color: "var(--text-soft)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", padding: "12px 16px", borderBottom: "1px solid var(--border)" },
+  resultsPanel:{ background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 12, marginBottom: 20, overflow: "hidden", boxShadow: "3px 3px 0 var(--ink-000)" },
+  resultsLabel:{ color: "var(--hero-gold)", fontSize: 16, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", padding: "12px 16px", borderBottom: "2px solid var(--ink-000)", fontFamily: "var(--font-burst)" },
   resultRow:   { display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--border)" },
   resultCover: { width: 36, height: 54, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   resultName:  { color: "var(--text)", fontWeight: 600, fontSize: 14 },

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
+import InkButton from "../../../components/InkButton";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -119,9 +120,9 @@ export default function ReleasesClient() {
       </div>
 
       <div style={s.weekNav}>
-        <button style={s.navBtn} onClick={() => setOffset(o => o - 1)}>← Prev week</button>
-        <button style={s.navBtn} onClick={() => setOffset(0)}>This week</button>
-        <button style={s.navBtn} onClick={() => setOffset(o => o + 1)}>Next week →</button>
+        <InkButton variant="ghost" size="sm" onClick={() => setOffset(o => o - 1)}>← Prev week</InkButton>
+        <InkButton variant="ghost" size="sm" onClick={() => setOffset(0)}>This week</InkButton>
+        <InkButton variant="ghost" size="sm" onClick={() => setOffset(o => o + 1)}>Next week →</InkButton>
       </div>
 
       {loading && <p style={s.msg}>Loading releases…</p>}
@@ -210,19 +211,18 @@ const s = {
   title:          { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
   date:           { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)" },
   weekNav:        { display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" },
-  navBtn:         { padding: "8px 16px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text-soft)", cursor: "pointer", fontSize: 13 },
   msg:            { color: "var(--text-soft)", padding: "40px 0", textAlign: "center" },
   note:           { color: "var(--hero-gold)", fontSize: 12, marginBottom: 8 },
   source:         { color: "var(--text-faint)", fontSize: 12, marginBottom: 12 },
   sectionHeadRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 },
-  sectionHead:    { color: "var(--text-faint)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" },
-  weeklySpend:    { color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },
+  sectionHead:    { color: "var(--text)", fontSize: 22, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "var(--font-display)", paddingBottom: 6, borderBottom: "2px solid var(--ink-000)" },
+  weeklySpend:    { color: "var(--ink-000)", background: "var(--hero-gold)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-burst)", padding: "4px 10px", border: "1px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", transform: "rotate(-4deg)" },
   row:            { display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" },
-  rowHighlight:   { background: "var(--bg-surface)", borderRadius: 10, padding: "10px 12px", marginBottom: 2, borderBottom: "none" },
+  rowHighlight:   { background: "var(--bg-surface)", backgroundImage: "var(--halftone-dots-gold)", backgroundSize: "var(--halftone-size)", borderRadius: 10, padding: "10px 12px", marginBottom: 2, borderBottom: "none", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
   cover:          { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   releaseTitle:   { color: "var(--text)", fontSize: 14, fontWeight: 600 },
   releaseMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
   price:          { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, flexShrink: 0 },
-  toggleBtn:      { width: 32, height: 32, borderRadius: "50%", background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-soft)", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1 },
+  toggleBtn:      { width: 32, height: 32, borderRadius: "50%", background: "var(--bg-card)", border: "2px solid var(--ink-000)", color: "var(--text-soft)", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, boxShadow: "2px 2px 0 var(--ink-000)" },
   toggleBtnOn:    { background: "var(--accent)", borderColor: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 14 },
 };

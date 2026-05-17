@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { C } from "../../../lib/theme";
 import { supabase } from "../../../lib/supabase-browser";
+import InkButton from "../../../components/InkButton";
 
 const MODES = [
   { id: "catchup",     label: "Catch Me Up",   desc: "Recap story so far — no spoilers beyond what you've read" },
@@ -101,7 +101,7 @@ export default function CompassClient() {
           <div style={s.empty}>
             <p style={s.emptyHead}>No reads logged yet</p>
             <p style={s.emptySub}>Log some comics first — Compass learns from your reading history and can only give spoiler-safe answers once it knows what you've read.</p>
-            <a href="/library" style={s.onboardingBtn}>Go add comics →</a>
+            <InkButton href="/library" size="lg">Go add comics</InkButton>
           </div>
         )}
 
@@ -135,10 +135,11 @@ export default function CompassClient() {
           placeholder="Ask about your comics…"
           rows={1}
           style={s.textarea}
+          className="ink-input"
         />
-        <button onClick={() => send()} disabled={!input.trim() || loading} style={{ ...s.sendBtn, ...((!input.trim() || loading) ? s.sendBtnDisabled : {}) }}>
+        <InkButton onClick={() => send()} disabled={!input.trim() || loading} size="lg">
           {loading ? "…" : "Send"}
-        </button>
+        </InkButton>
       </div>
       <p style={s.hint}>Enter to send · Shift+Enter for new line · Compass never spoils unread issues</p>
     </div>
@@ -151,19 +152,18 @@ const s = {
   sub:           { color: "var(--text-faint)", fontSize: 14, marginBottom: 20 },
 
   modeRow:       { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" },
-  modeBtn:       { flex: 1, minWidth: 180, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 },
-  modeBtnActive: { borderColor: "var(--accent)", background: "#1c1018" },
+  modeBtn:       { flex: 1, minWidth: 180, background: "var(--bg-card)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 },
+  modeBtnActive: { borderColor: "var(--ink-000)", background: "var(--accent)", backgroundImage: "var(--hatch-dark)", transform: "rotate(-1deg)" },
   modeLabel:     { color: "var(--text)", fontWeight: 700, fontSize: 13, fontFamily: "var(--font-body)" },
   modeDesc:      { color: "var(--text-faint)", fontSize: 11, lineHeight: 1.4 },
 
-  chatBox:       { flex: 1, overflowY: "auto", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16, marginBottom: 12 },
+  chatBox:       { flex: 1, overflowY: "auto", background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16, marginBottom: 12, boxShadow: "4px 4px 0 var(--ink-000)" },
 
   empty:         { margin: "auto", textAlign: "center", maxWidth: 420 },
-  emptyHead:     { color: "var(--text-soft)", fontSize: 15, marginBottom: 12 },
+  emptyHead:     { color: "var(--text-soft)", fontSize: 24, marginBottom: 12, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.04em" },
   emptySub:      { color: "var(--text-faint)", fontSize: 13, lineHeight: 1.6, marginBottom: 20 },
-  onboardingBtn: { display: "inline-block", background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 13, padding: "10px 20px", borderRadius: 10, cursor: "pointer" },
   starters:      { display: "flex", flexDirection: "column", gap: 10, alignItems: "center" },
-  starterBtn:    { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 18px", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", maxWidth: 400, width: "100%", textAlign: "left" },
+  starterBtn:    { background: "var(--bg-card)", border: "1.5px solid var(--ink-000)", borderRadius: 10, padding: "10px 18px", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", maxWidth: 400, width: "100%", textAlign: "left", boxShadow: "2px 2px 0 var(--ink-000)" },
 
   bubble:        { display: "flex", flexDirection: "column", gap: 6, maxWidth: "85%" },
   bubbleUser:    { alignSelf: "flex-end", background: "var(--accent)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", borderRadius: "14px 14px 4px 14px", padding: "12px 16px" },
@@ -181,8 +181,6 @@ const s = {
   cursor:        { color: "var(--hero-red)", animation: "blink 1s step-end infinite" },
 
   inputRow:      { display: "flex", gap: 10, alignItems: "flex-end" },
-  textarea:      { flex: 1, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)", fontSize: 14, padding: "12px 16px", resize: "none", outline: "none", lineHeight: 1.5, fontFamily: "inherit" },
-  sendBtn:       { background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px 22px", borderRadius: 12, cursor: "pointer", whiteSpace: "nowrap" },
-  sendBtnDisabled: { opacity: 0.4, cursor: "default" },
+  textarea:      { flex: 1, resize: "none", lineHeight: 1.5, fontFamily: "inherit" },
   hint:          { color: "var(--text-faint)", fontSize: 11, textAlign: "center", marginTop: 6 },
 };

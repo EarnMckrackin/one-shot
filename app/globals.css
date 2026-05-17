@@ -222,6 +222,67 @@ input:focus, textarea:focus {
   display: inline-block;
 }
 
+/* Inked Buttons ─────────────────────────────────────────────────────────────── */
+.ink-btn {
+  font-family: var(--font-burst);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  border: 2px solid var(--ink-000);
+  box-shadow: 3px 3px 0 var(--ink-000);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: transform 80ms var(--ease-out), box-shadow 80ms var(--ease-out), background 120ms;
+  user-select: none;
+}
+
+.ink-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink-000);
+}
+
+.ink-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ink-btn--sm { font-size: 13px; padding: 6px 12px 4px; box-shadow: 2px 2px 0 var(--ink-000); }
+.ink-btn--md { font-size: 16px; padding: 8px 18px 6px; }
+.ink-btn--lg { font-size: 20px; padding: 11px 22px 9px; border-width: 2.5px; box-shadow: 4px 4px 0 var(--ink-000); }
+
+.ink-btn--primary { background: var(--accent); color: #fff; }
+.ink-btn--primary:hover:not(:disabled) { background: var(--accent-hov); }
+.ink-btn--gold { background: var(--hero-gold); color: var(--ink-000); }
+.ink-btn--cyan { background: var(--hero-cyan); color: var(--ink-000); }
+.ink-btn--ghost { background: var(--bg-elevated); color: var(--text); }
+.ink-btn--ghost:hover:not(:disabled) { background: var(--bg-card); }
+
+/* Inked Forms ───────────────────────────────────────────────────────────────── */
+.ink-input {
+  background: var(--bg-card);
+  border: 2px solid var(--ink-000);
+  box-shadow: 2px 2px 0 var(--ink-000);
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.ink-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(239, 43, 61, 0.25), 2px 2px 0 var(--ink-000);
+}
+
+/* Inked Panels ──────────────────────────────────────────────────────────────── */
+.ink-panel {
+  background: var(--bg-card);
+  border: 2px solid var(--ink-000);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--ink-000);
+}
+
 /* Animations ─────────────────────────────────────────────────────────────────── */
 @keyframes blink {
   0%, 100% { opacity: 1; }

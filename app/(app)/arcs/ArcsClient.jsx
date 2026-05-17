@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
+import InkButton from "../../../components/InkButton";
 
 export default function ArcsClient() {
   const [arcs, setArcs]       = useState([]);
@@ -43,14 +43,15 @@ export default function ArcsClient() {
 
       <form onSubmit={createArc} style={s.createRow}>
         <input
+          className="ink-input"
           placeholder="Create a new reading order (e.g. Hickman's Avengers saga)…"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           style={{ flex: 1 }}
         />
-        <button type="submit" style={s.createBtn} disabled={creating}>
+        <InkButton type="submit" disabled={creating}>
           {creating ? "…" : "Create"}
-        </button>
+        </InkButton>
       </form>
 
       {loading && <p style={s.msg}>Loading…</p>}
@@ -103,17 +104,16 @@ const s = {
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:         { color: "var(--text-faint)", fontSize: 14, marginBottom: 24 },
   createRow:   { display: "flex", gap: 10, marginBottom: 32 },
-  createBtn:   { background: "var(--accent)", color: "#fff", padding: "10px 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
   msg:         { color: "var(--text-soft)", padding: "40px 0" },
   sectionHead: { color: "var(--text-faint)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
   grid:        { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 },
-  arcCard:     { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 8 },
+  arcCard:     { background: "var(--bg-card)", backgroundImage: "var(--hatch-dark)", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 8 },
   arcTop:      { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  arcName:     { color: "var(--text)", fontWeight: 700, fontSize: 15, lineHeight: 1.3 },
-  systemTag:   { background: "var(--bg-surface)", color: "var(--hero-gold)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, letterSpacing: 0.5, flexShrink: 0 },
+  arcName:     { color: "var(--text)", fontWeight: 700, fontSize: 18, lineHeight: 1.1, fontFamily: "var(--font-display)", letterSpacing: "0.02em", textTransform: "uppercase" },
+  systemTag:   { background: "var(--hero-gold)", color: "var(--ink-000)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, letterSpacing: 0.5, flexShrink: 0, fontFamily: "var(--font-burst)", transform: "rotate(-5deg)", border: "1px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
   arcDesc:     { color: "var(--text-faint)", fontSize: 12, lineHeight: 1.5, flex: 1 },
   arcBottom:   { display: "flex", alignItems: "center", gap: 10, marginTop: 4 },
-  progressBar: { flex: 1, height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" },
-  progressFill:{ height: "100%", background: "var(--hero-cyan)", borderRadius: 2 },
-  arcMeta:     { color: "var(--text-faint)", fontSize: 11, flexShrink: 0 },
+  progressBar: { flex: 1, height: 10, background: "var(--border)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--ink-000)" },
+  progressFill:{ height: "100%", background: "var(--hero-cyan)", backgroundImage: "var(--halftone-dots)", backgroundSize: "var(--halftone-size)", borderRadius: 999 },
+  arcMeta:     { color: "var(--hero-gold)", fontSize: 16, flexShrink: 0, fontFamily: "var(--font-burst)", letterSpacing: "0.05em" },
 };

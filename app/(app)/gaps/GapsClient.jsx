@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
 
 function parseIssueNum(n) {
   if (!n) return null;

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import { useRouter } from "next/navigation";
+import InkButton from "../../../components/InkButton";
 
 export default function SettingsClient({ user, googleConnected, minutesPerDay: initialMinutes, flashMessage }) {
   const router = useRouter();
@@ -51,15 +52,15 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
           <span style={s.sliderVal}>{minutes} min/day</span>
         </div>
         <p style={s.hint}>~{issuesPerDay} issue{issuesPerDay !== 1 ? "s" : ""} per day at 15 min each</p>
-        <button style={s.primaryBtn} onClick={saveReading} disabled={saving}>
+        <InkButton onClick={saveReading} disabled={saving}>
           {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
-        </button>
+        </InkButton>
       </section>
 
       <section style={s.section}>
         <h2 style={s.sectionTitle}>Account</h2>
         <p style={s.detail}>{user.email}</p>
-        <button style={s.ghostBtn} onClick={signOut}>Sign Out</button>
+        <InkButton variant="ghost" onClick={signOut}>Sign Out</InkButton>
       </section>
 
       <section style={s.section}>
@@ -71,7 +72,7 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
         </p>
         {googleConnected
           ? <span style={s.connected}>● Connected</span>
-          : <a href="/api/google/auth" style={s.primaryBtn}>Connect Google Drive</a>
+          : <InkButton href="/api/google/auth">Connect Google Drive</InkButton>
         }
       </section>
 
@@ -90,14 +91,12 @@ const s = {
   flash:        { borderRadius: 10, padding: "12px 16px", marginBottom: 24, fontSize: 14, fontWeight: 600 },
   flashSuccess: { background: "rgba(6,214,160,0.12)", color: "var(--hero-cyan)", border: "1px solid var(--hero-cyan)" },
   flashWarn:    { background: "rgba(239,43,61,0.1)", color: "var(--accent)", border: "1px solid var(--accent)" },
-  section:      { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: 700, marginBottom: 10 },
+  section:      { background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 14, padding: 24, marginBottom: 16, boxShadow: "4px 4px 0 var(--ink-000)" },
+  sectionTitle: { fontSize: 22, fontWeight: 700, marginBottom: 10, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.04em", paddingBottom: 8, borderBottom: "2px solid var(--ink-000)" },
   detail:       { color: "var(--text-soft)", fontSize: 14, marginBottom: 12, lineHeight: 1.6 },
   sliderRow:    { display: "flex", alignItems: "center", gap: 16, marginBottom: 8 },
   slider:       { flex: 1, accentColor: "var(--accent)", cursor: "pointer" },
-  sliderVal:    { fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--text)", minWidth: 88, textAlign: "right" },
+  sliderVal:    { fontFamily: "var(--font-burst)", fontSize: 22, color: "var(--hero-gold)", minWidth: 110, textAlign: "right", letterSpacing: "0.04em" },
   hint:         { color: "var(--text-faint)", fontSize: 12, marginBottom: 16 },
-  primaryBtn:   { display: "inline-block", background: "var(--accent)", color: "#fff", padding: "11px 20px", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", border: "none" },
-  ghostBtn:     { background: "none", border: "1px solid var(--border)", color: "var(--text-soft)", padding: "10px 18px", borderRadius: 10, cursor: "pointer", fontSize: 14 },
   connected:    { color: "var(--hero-cyan)", fontWeight: 600, fontSize: 14 },
 };

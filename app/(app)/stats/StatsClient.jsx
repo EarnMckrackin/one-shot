@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
-import { C } from "../../../lib/theme";
 
 function getMonthKey(d) {
   const date = new Date(d);
@@ -210,8 +209,8 @@ const s = {
   page:        { maxWidth: 900 },
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 28 },
   topStats:    { display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" },
-  section:     { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, flex: 1 },
-  sectionTitle:{ color: "var(--text)", fontSize: 16, fontWeight: 700, marginBottom: 20 },
+  section:     { background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 14, padding: 24, flex: 1, boxShadow: "4px 4px 0 var(--ink-000)" },
+  sectionTitle:{ color: "var(--text)", fontSize: 22, fontWeight: 700, marginBottom: 20, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.04em", paddingBottom: 8, borderBottom: "2px solid var(--ink-000)" },
   twoCol:      { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 },
   barChart:    { display: "flex", gap: 8, alignItems: "flex-end", height: 160 },
   barCol:      { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flex: 1 },

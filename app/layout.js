@@ -1,21 +1,31 @@
 import "./globals.css";
+import PWARegistration from "../components/PWARegistration";
 
 export const metadata = {
   title:       "One Shot",
   description: "Your complete comic collection, pull list, and reading schedule",
   manifest:    "/manifest.json",
-  themeColor:  "#0a0a0f",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "One Shot" },
+};
+
+export const viewport = {
+  themeColor: "#0a0a0f",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        <PWARegistration />
+        {children}
+      </body>
     </html>
   );
 }

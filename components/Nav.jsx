@@ -190,7 +190,7 @@ export default function Nav() {
           .main-content  { margin-left: ${sidebarWidth}px !important; transition: margin-left 250ms ease; }
         }
         @media (max-width: 767px) {
-          .main-content { padding-top: 60px !important; }
+          .main-content { padding-top: calc(60px + env(safe-area-inset-top, 0px)) !important; }
         }
       `}</style>
     </>
@@ -321,13 +321,13 @@ const s = {
   topBar: {
     position:        "fixed",
     top:             0, left: 0, right: 0,
-    height:          52,
+    minHeight:       "calc(52px + env(safe-area-inset-top, 0px))",
     background:      "var(--bg-surface)",
     backgroundImage: "var(--halftone-dots)",
     backgroundSize:  "var(--halftone-size)",
     borderBottom:    "3px solid var(--ink-000)",
     alignItems:      "center",
-    padding:         "0 16px",
+    padding:         "env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px))",
     gap:             12,
     zIndex:          200,
   },
@@ -366,6 +366,8 @@ const s = {
     zIndex:          300,
     transition:      "transform 250ms cubic-bezier(0.4, 0, 0.2, 1)",
     overflowY:       "auto",
+    paddingTop:      "env(safe-area-inset-top, 0px)",
+    paddingBottom:   "env(safe-area-inset-bottom, 0px)",
   },
 
   backdrop: {

@@ -127,8 +127,8 @@ export default function ComicDetailClient({ comic: initial }) {
           <div style={s.actions}>
             <InkButton onClick={() => setLogOpen(!logOpen)}>Log Reading</InkButton>
             <InkButton variant="ghost" onClick={() => setSchedOpen(!schedOpen)}>+ Schedule</InkButton>
-            {comic.has_pdf && comic.drive_view_url && (
-              <InkButton href={comic.drive_view_url} external variant="gold">Open PDF</InkButton>
+            {comic.has_pdf && comic.drive_file_id && (
+              <InkButton href={`/api/google/pdf/${comic.id}`} external variant="gold">Read PDF</InkButton>
             )}
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>

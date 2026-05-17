@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["192.168.1.51"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "comicvine.gamespot.com" },

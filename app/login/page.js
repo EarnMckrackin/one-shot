@@ -1,28 +1,51 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase-browser";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
+  const [status, setStatus]     = useState("Ready");
   const [focused, setFocused]   = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (loading) return;
+
+    const mode = e.nativeEvent.submitter?.value || (isSignup ? "signup" : "signin");
     setLoading(true);
     setError(null);
-    const { error } = isSignup
-      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/api/auth/callback` } })
-      : await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) { setError(error.message); return; }
-    router.push("/library");
-    router.refresh();
+    setStatus("Submitting credentials...");
+
+    try {
+      setStatus("Contacting Supabase...");
+      const authRequest = mode === "signup"
+        ? supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: { emailRedirectTo: `${location.origin}/api/auth/callback` },
+          })
+        : supabase.auth.signInWithPassword({ email: email.trim(), password });
+
+      const { error } = await withTimeout(authRequest, 15000);
+
+      if (error) {
+        setStatus("Sign in failed");
+        setError(error.message);
+        return;
+      }
+
+      setStatus("Signed in. Opening library...");
+      window.location.assign("/library");
+    } catch (err) {
+      setStatus("Sign in failed");
+      setError(err?.message || "Unable to sign in. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const inkInput = (isFocused) => ({
@@ -48,7 +71,7 @@ export default function LoginPage() {
           <div style={s.rule} />
           <p style={s.tagline}>YOUR COMPLETE COMIC COLLECTION.</p>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <form action="/api/auth/password" method="post" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ ...s.tag, color: "var(--ink-000)", background: "var(--hero-gold)" }}>EMAIL</span>
               <input
@@ -78,8 +101,12 @@ export default function LoginPage() {
               />
             </div>
             {error && <p style={s.error}>{error}</p>}
-            <button type="submit" style={s.btn} disabled={loading}>
-              {loading ? "…" : isSignup ? "CREATE ACCOUNT!" : "SIGN IN!"}
+            <p style={s.status}>{status}</p>
+            <button type="submit" name="mode" value="signin" style={s.btn} disabled={loading}>
+              {loading ? "…" : "SIGN IN!"}
+            </button>
+            <button type="submit" name="mode" value="signup" style={s.secondaryBtn} disabled={loading}>
+              CREATE ACCOUNT!
             </button>
           </form>
 
@@ -93,6 +120,15 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Sign in timed out. Check that your iPhone has internet access and try again.")), ms);
+    }),
+  ]);
 }
 
 const s = {
@@ -143,12 +179,20 @@ const s = {
     marginLeft: 12, position: "relative", zIndex: 1,
   },
   error: { color: "var(--accent)", fontSize: 13 },
+  status: { color: "var(--text-soft)", fontSize: 12, margin: 0 },
   btn: {
     marginTop: 10, padding: "11px 20px 9px", width: "100%",
     background: "var(--accent)", color: "#fff",
     fontFamily: "var(--font-burst)", fontSize: 20, letterSpacing: "0.14em",
     border: "2.5px solid var(--ink-000)", borderRadius: 8,
     boxShadow: "4px 4px 0 var(--ink-000)", cursor: "pointer",
+  },
+  secondaryBtn: {
+    padding: "10px 18px 8px", width: "100%",
+    background: "var(--hero-gold)", color: "var(--ink-000)",
+    fontFamily: "var(--font-burst)", fontSize: 15, letterSpacing: "0.12em",
+    border: "2.5px solid var(--ink-000)", borderRadius: 8,
+    boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer",
   },
   toggleWrap: {
     display: "block", color: "var(--text-soft)",

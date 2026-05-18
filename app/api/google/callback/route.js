@@ -15,7 +15,7 @@ export async function GET(request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
-  const tokens    = await getTokensFromCode(code);
+  const tokens    = await getTokensFromCode(code, new URL("/api/google/callback", request.url).toString());
   const encrypted = encryptTokens(tokens);
 
   await supabase.from("user_integrations").upsert({

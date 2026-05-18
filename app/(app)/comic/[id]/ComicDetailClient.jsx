@@ -154,22 +154,42 @@ export default function ComicDetailClient({ comic: initial }) {
     setPdfError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("comicId", comic.id);
-
-      const res = await fetch("/api/google/upload", {
+      const sessionRes = await fetch("/api/google/upload-session", {
         method: "POST",
-        body: formData,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          fileSize: file.size,
+        }),
       });
-      const data = await res.json().catch(() => ({}));
+      const session = await sessionRes.json().catch(() => ({}));
 
-      if (res.status === 403) {
+      if (sessionRes.status === 403) {
         router.push("/api/google/auth");
         return;
       }
 
-      if (!res.ok) throw new Error(data.error || "Could not upload PDF.");
+      if (!sessionRes.ok) throw new Error(session.error || `Upload failed with HTTP ${sessionRes.status}.`);
+
+      const uploadRes = await fetch(session.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": "application/pdf" },
+        body: file,
+      });
+      const driveFile = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok) throw new Error(driveFile?.error?.message || `Google Drive upload failed with HTTP ${uploadRes.status}.`);
+
+      const completeRes = await fetch("/api/google/upload-complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          comicId: comic.id,
+          drive_file_id: driveFile.id,
+          drive_view_url: driveFile.webViewLink,
+        }),
+      });
+      const data = await completeRes.json().catch(() => ({}));
+      if (!completeRes.ok) throw new Error(data.error || `Could not save PDF to comic. HTTP ${completeRes.status}.`);
 
       setComic((current) => ({
         ...current,

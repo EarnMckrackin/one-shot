@@ -30,7 +30,9 @@ export default function LibraryClient({ publishers, allSeries }) {
   useEffect(() => {
     const publisher = searchParams.get("publisher") || "";
     const series = searchParams.get("series") || "";
+    const format = searchParams.get("format") || "";
     if (publisher) setPubFilter(publisher);
+    if (["Both", "PDF", "Physical"].includes(format)) setFormatFilter(format);
     if (series) {
       const match = allSeries.find((item) => String(item.id) === series);
       setPubFilter(match?.publisher_id ? String(match.publisher_id) : "");

@@ -39,8 +39,9 @@ export default function ScanClient() {
   const [results, setResults]   = useState([]);
   const [extracted, setExtracted] = useState(null);
   const [adding, setAdding]     = useState(false);
-  const [pdfFile, setPdfFile]   = useState(null);
+  const [pdfFiles, setPdfFiles] = useState([]);
   const [pdfDetails, setPdfDetails] = useState({ title: "", issue: "", series: "" });
+  const [pdfProgress, setPdfProgress] = useState("");
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching]     = useState(false);
   const [publisherChoice, setPublisherChoice] = useState("");
@@ -259,8 +260,9 @@ export default function ScanClient() {
 
   async function handlePDFSubmit(e) {
     e.preventDefault();
-    if (!pdfFile) return;
+    if (!pdfFiles.length) return;
     setAdding(true);
+    setPdfProgress("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -284,38 +286,73 @@ export default function ScanClient() {
         seriesId = ser?.id;
       }
 
-      const { data: comic, error } = await supabase.from("comics").insert({
-        user_id:      user.id,
-        series_id:    seriesId,
-        publisher_id: publisherId,
-        title:        pdfDetails.title || pdfFile.name.replace(".pdf", ""),
-        issue_number: pdfDetails.issue || null,
-        has_pdf:      false,
-      }).select("id").single();
+      let lastComicId = null;
+      for (const [index, file] of pdfFiles.entries()) {
+        setPdfProgress(`Uploading ${index + 1} of ${pdfFiles.length}: ${file.name}`);
+        const singleFile = pdfFiles.length === 1;
+        const { data: comic, error } = await supabase.from("comics").insert({
+          user_id:      user.id,
+          series_id:    seriesId,
+          publisher_id: publisherId,
+          title:        singleFile && pdfDetails.title ? pdfDetails.title : titleFromPdfName(file.name),
+          issue_number: singleFile ? (pdfDetails.issue || null) : null,
+          has_pdf:      false,
+        }).select("id").single();
 
-      if (error) throw error;
+        if (error) throw error;
+        lastComicId = comic.id;
 
-      // Upload to Google Drive
-      const fd = new FormData();
-      fd.append("file",    pdfFile);
-      fd.append("comicId", comic.id);
-
-      const uploadRes = await fetch("/api/google/upload", { method: "POST", body: fd });
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        if (err.error === "Google Drive not connected") {
-          router.push(`/comic/${comic.id}?connectDrive=1`);
-          return;
-        }
-        throw new Error(err.error);
+        await uploadPdfForComic(file, comic.id);
       }
 
-      router.push(`/comic/${comic.id}`);
+      setPdfFiles([]);
+      setPdfDetails({ title: "", issue: "", series: pdfDetails.series });
+      router.push(pdfFiles.length === 1 && lastComicId ? `/comic/${lastComicId}` : "/library?format=PDF");
     } catch (e) {
       alert("Error: " + e.message);
     } finally {
       setAdding(false);
+      setPdfProgress("");
     }
+  }
+
+  async function uploadPdfForComic(file, comicId) {
+    const sessionRes = await fetch("/api/google/upload-session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        fileSize: file.size,
+      }),
+    });
+    const session = await sessionRes.json().catch(() => ({}));
+
+    if (sessionRes.status === 403) {
+      router.push("/api/google/auth");
+      throw new Error("Google Drive not connected.");
+    }
+
+    if (!sessionRes.ok) throw new Error(session.error || `Upload failed with HTTP ${sessionRes.status}.`);
+
+    const uploadRes = await fetch(session.uploadUrl, {
+      method: "PUT",
+      headers: { "content-type": "application/pdf" },
+      body: file,
+    });
+    const driveFile = await uploadRes.json().catch(() => ({}));
+    if (!uploadRes.ok) throw new Error(driveFile?.error?.message || `Google Drive upload failed with HTTP ${uploadRes.status}.`);
+
+    const completeRes = await fetch("/api/google/upload-complete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        comicId,
+        drive_file_id: driveFile.id,
+        drive_view_url: driveFile.webViewLink,
+      }),
+    });
+    const completed = await completeRes.json().catch(() => ({}));
+    if (!completeRes.ok) throw new Error(completed.error || `Could not save PDF to comic. HTTP ${completeRes.status}.`);
   }
 
   return (
@@ -428,15 +465,29 @@ export default function ScanClient() {
       {mode === "Upload PDF" && (
         <form onSubmit={handlePDFSubmit} style={s.pdfForm}>
           <label style={s.pdfLabel}>
-            <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0])} style={{ display: "none" }} />
-            <span style={s.uploadBtn}>{pdfFile ? pdfFile.name : "Choose PDF File"}</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              multiple
+              onChange={(e) => setPdfFiles(Array.from(e.target.files ?? []))}
+              style={{ display: "none" }}
+            />
+            <span style={s.uploadBtn}>{pdfFiles.length ? `${pdfFiles.length} PDF${pdfFiles.length === 1 ? "" : "s"} selected` : "Choose PDF Files"}</span>
           </label>
-          <input className="ink-input" placeholder="Title (e.g. Amazing Spider-Man)" value={pdfDetails.title} onChange={(e) => setPdfDetails({ ...pdfDetails, title: e.target.value })} />
-          <input className="ink-input" placeholder="Issue # (e.g. 42)" value={pdfDetails.issue} onChange={(e) => setPdfDetails({ ...pdfDetails, issue: e.target.value })} />
+          {pdfFiles.length > 0 && (
+            <div style={s.pdfFileList}>
+              {pdfFiles.map((file) => (
+                <span key={`${file.name}-${file.size}`} style={s.pdfFileItem}>{file.name}</span>
+              ))}
+            </div>
+          )}
+          <input className="ink-input" placeholder="Title (single PDF only; otherwise file names are used)" value={pdfDetails.title} onChange={(e) => setPdfDetails({ ...pdfDetails, title: e.target.value })} disabled={pdfFiles.length > 1} />
+          <input className="ink-input" placeholder="Issue # (single PDF only)" value={pdfDetails.issue} onChange={(e) => setPdfDetails({ ...pdfDetails, issue: e.target.value })} disabled={pdfFiles.length > 1} />
           <input className="ink-input" placeholder="Series name" value={pdfDetails.series} onChange={(e) => setPdfDetails({ ...pdfDetails, series: e.target.value })} />
-          <p style={s.hint}>PDF will be uploaded to your Google Drive and linked to this comic.</p>
-          <InkButton type="submit" size="lg" disabled={!pdfFile || adding}>
-            {adding ? "Uploading…" : "Add to Library"}
+          <p style={s.hint}>PDFs will be uploaded from this device to your Google Drive and linked to your library.</p>
+          {pdfProgress && <p style={s.uploadProgress}>{pdfProgress}</p>}
+          <InkButton type="submit" size="lg" disabled={!pdfFiles.length || adding}>
+            {adding ? "Uploading…" : `Add ${pdfFiles.length || ""} to Library`}
           </InkButton>
         </form>
       )}
@@ -555,6 +606,14 @@ function buildQueryFromOcr(text) {
   return [title, issue && `#${issue}`].filter(Boolean).join(" ").trim();
 }
 
+function titleFromPdfName(filename) {
+  return filename
+    .replace(/\.pdf$/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Untitled PDF";
+}
+
 const s = {
   page:          { maxWidth: 600, margin: "0 auto" },
   title:         { fontSize: 32, fontFamily: "var(--font-serif)", fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" },
@@ -580,6 +639,9 @@ const s = {
   uploadSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "40px 0" },
   uploadLabel:   { cursor: "pointer" },
   pdfForm:       { display: "flex", flexDirection: "column", gap: 12, maxWidth: 420 },
+  pdfFileList:   { display: "flex", flexDirection: "column", gap: 6, maxHeight: 140, overflow: "auto", padding: 10, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 },
+  pdfFileItem:   { color: "var(--text-soft)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  uploadProgress:{ color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },
   uploadBtn:     { display: "inline-block", background: "var(--bg-card)", border: "2px solid var(--ink-000)", color: "var(--text)", padding: "12px 20px", borderRadius: 10, cursor: "pointer", fontWeight: 600, boxShadow: "2px 2px 0 var(--ink-000)" },
   extracted:     { background: "var(--bg-card)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
   extractedLabel: { color: "var(--text-faint)", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "var(--font-burst)" },

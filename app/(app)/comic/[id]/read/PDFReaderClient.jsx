@@ -16,6 +16,7 @@ export default function PDFReaderClient({ comic }) {
   const [pdfBytes, setPdfBytes] = useState(null);
   const [sourceLabel, setSourceLabel] = useState("");
   const [layoutMode, setLayoutMode] = useState("single");
+  const [viewerMode, setViewerMode] = useState("canvas");
 
   const title = useMemo(() => {
     return `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`;
@@ -89,17 +90,22 @@ export default function PDFReaderClient({ comic }) {
           import.meta.url
         ).toString();
 
-        const pdf = await pdfjs.getDocument({ data: pdfBytes.slice() }).promise;
+        const pdf = await pdfjs.getDocument({
+          data: pdfBytes.slice(),
+          disableWorker: true,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        }).promise;
         if (cancelled || renderRunRef.current !== renderRun) return;
 
         setPageCount(pdf.numPages);
         await waitForCanvases(canvasRefs, pdf.numPages);
 
-        const availableWidth = Math.min(containerRef.current?.clientWidth || 360, 980);
+        const availableWidth = Math.min(containerRef.current?.clientWidth || 360, 860);
         const pageTargetWidth = layoutMode === "spread"
           ? Math.max(150, Math.floor((availableWidth - 18) / 2))
           : availableWidth;
-        const deviceScale = window.devicePixelRatio || 1;
+        const deviceScale = Math.min(window.devicePixelRatio || 1, 1.35);
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
           if (cancelled || renderRunRef.current !== renderRun) return;
@@ -112,15 +118,10 @@ export default function PDFReaderClient({ comic }) {
 
           if (!canvas) continue;
 
-          canvas.width = Math.floor(viewport.width * deviceScale);
-          canvas.height = Math.floor(viewport.height * deviceScale);
-          canvas.style.width = `${Math.floor(viewport.width)}px`;
-          canvas.style.height = `${Math.floor(viewport.height)}px`;
-
-          const context = canvas.getContext("2d");
-          context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
-
-          await page.render({ canvasContext: context, viewport }).promise;
+          await renderPageToCanvas(page, canvas, viewport, deviceScale);
+          if (isCanvasBlank(canvas)) {
+            await renderPageToCanvas(page, canvas, viewport, 1);
+          }
           if (!cancelled) setRenderedPage(pageNumber);
         }
       } catch (err) {
@@ -157,7 +158,14 @@ export default function PDFReaderClient({ comic }) {
           >
             {layoutMode === "single" ? "Side by Side" : "Single Page"}
           </button>
-          {pdfUrl && <a href={pdfUrl} style={s.download}>Open file</a>}
+          <button
+            type="button"
+            style={{ ...s.layoutBtn, ...(viewerMode === "native" ? s.layoutBtnActive : {}) }}
+            onClick={() => setViewerMode((mode) => mode === "canvas" ? "native" : "canvas")}
+            disabled={!pdfUrl}
+          >
+            {viewerMode === "canvas" ? "Native View" : "Rendered View"}
+          </button>
         </div>
       </div>
 
@@ -165,7 +173,15 @@ export default function PDFReaderClient({ comic }) {
         <div style={s.notice}>
           <h2 style={s.noticeTitle}>Could not render the PDF</h2>
           <p style={s.noticeText}>{error}</p>
-          {pdfUrl && <a href={pdfUrl} style={s.noticeLink}>Open the PDF file</a>}
+          {pdfUrl && <button type="button" style={s.noticeButton} onClick={() => setViewerMode("native")}>Try Native View</button>}
+        </div>
+      ) : viewerMode === "native" ? (
+        <div style={s.nativeWrap}>
+          {pdfUrl ? (
+            <iframe title={title} src={pdfUrl} style={s.nativeFrame} />
+          ) : (
+            <p style={s.noticeText}>No local PDF URL is available.</p>
+          )}
         </div>
       ) : (
         <>
@@ -203,6 +219,61 @@ function waitForCanvases(canvasRefs, pageCount) {
     }
     requestAnimationFrame(check);
   });
+}
+
+async function renderPageToCanvas(page, canvas, viewport, deviceScale) {
+  canvas.width = 1;
+  canvas.height = 1;
+  canvas.width = Math.max(1, Math.floor(viewport.width * deviceScale));
+  canvas.height = Math.max(1, Math.floor(viewport.height * deviceScale));
+  canvas.style.width = `${Math.floor(viewport.width)}px`;
+  canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+  const context = canvas.getContext("2d", { alpha: false });
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.restore();
+  context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
+
+  await page.render({
+    canvasContext: context,
+    viewport,
+    background: "white",
+  }).promise;
+}
+
+function isCanvasBlank(canvas) {
+  try {
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const width = canvas.width;
+    const height = canvas.height;
+    if (!width || !height) return true;
+
+    const sampleSize = 8;
+    const points = [
+      [0.5, 0.5],
+      [0.2, 0.2],
+      [0.8, 0.2],
+      [0.2, 0.8],
+      [0.8, 0.8],
+      [0.5, 0.15],
+      [0.5, 0.85],
+    ];
+
+    return points.every(([xPct, yPct]) => {
+      const x = Math.max(0, Math.min(width - sampleSize, Math.floor(width * xPct)));
+      const y = Math.max(0, Math.min(height - sampleSize, Math.floor(height * yPct)));
+      const { data } = context.getImageData(x, y, sampleSize, sampleSize);
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return false;
+      }
+      return true;
+    });
+  } catch {
+    return false;
+  }
 }
 
 const s = {
@@ -271,6 +342,7 @@ const s = {
     fontSize: 12,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
+    cursor: "pointer",
   },
   layoutBtnActive: {
     background: "var(--hero-cyan)",
@@ -328,5 +400,27 @@ const s = {
   },
   noticeTitle: { fontFamily: "var(--font-display)", fontSize: 22, marginBottom: 8 },
   noticeText: { color: "var(--text-soft)", marginBottom: 14 },
-  noticeLink: { color: "var(--hero-gold)", fontWeight: 700 },
+  noticeButton: {
+    color: "var(--hero-gold)",
+    fontWeight: 700,
+    background: "transparent",
+    border: 0,
+    padding: 0,
+    cursor: "pointer",
+  },
+  nativeWrap: {
+    height: "calc(100dvh - 150px)",
+    minHeight: 520,
+    marginTop: 14,
+    border: "2px solid var(--ink-000)",
+    borderRadius: 8,
+    overflow: "hidden",
+    background: "#fff",
+  },
+  nativeFrame: {
+    width: "100%",
+    height: "100%",
+    border: 0,
+    background: "#fff",
+  },
 };

@@ -23,6 +23,8 @@ export default function ReleasesClient() {
   const [error, setError]             = useState(null);
   const [weekOffset, setOffset]       = useState(0);
   const [toggling, setToggling]       = useState(null);
+  const [adding, setAdding]           = useState(null);
+  const [librarySet, setLibrarySet]   = useState(new Set());
   const [source, setSource]           = useState(null);
   const [warning, setWarning]         = useState(null);
 
@@ -39,7 +41,11 @@ export default function ReleasesClient() {
       supabase.from("pull_list")
         .select("series_id, series:series_id(name, comicvine_id)")
         .eq("active", true),
-    ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }]) => {
+      supabase.from("comics")
+        .select("id, comicvine_id, title, issue_number, series:series_id(name)")
+        .gte("release_date", wednesday)
+        .lte("release_date", addDays(wednesday, 6)),
+    ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }, { data: library }]) => {
       const releaseList = r ?? [];
       setReleases(releaseList);
       setSource(releaseSource ?? null);
@@ -60,6 +66,7 @@ export default function ReleasesClient() {
 
       setSeriesIdMap(map);
       setPullSet(new Set([...(pullMatches ?? []), ...Object.keys(map)]));
+      setLibrarySet(new Set((library ?? []).map(libraryKey)));
     }).catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [wednesday]);
@@ -108,6 +115,72 @@ export default function ReleasesClient() {
     }
   }
 
+  async function addToLibrary(release) {
+    const key = releaseKey(release);
+    setAdding(key);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { series_name, publisher, cover_url, volume_cv_id } = release;
+
+      let publisherId = null;
+      if (publisher) {
+        const { data: pub } = await supabase.from("publishers")
+          .upsert({ user_id: user.id, name: publisher }, { onConflict: "user_id,name" })
+          .select("id").single();
+        publisherId = pub?.id;
+      }
+
+      let seriesId = null;
+      if (series_name) {
+        const { data: ser } = await supabase.from("series")
+          .upsert({
+            user_id:      user.id,
+            publisher_id: publisherId,
+            name:         series_name,
+            comicvine_id: volume_cv_id || null,
+            cover_url,
+          }, { onConflict: "user_id,name" })
+          .select("id").single();
+        seriesId = ser?.id;
+      }
+
+      let existingQuery = supabase
+        .from("comics")
+        .select("id")
+        .eq("user_id", user.id);
+
+      existingQuery = seriesId
+        ? existingQuery.eq("series_id", seriesId)
+        : existingQuery.eq("title", release.title || series_name || "Untitled");
+
+      existingQuery = release.issue_number
+        ? existingQuery.eq("issue_number", release.issue_number)
+        : existingQuery.is("issue_number", null);
+
+      const { data: existing } = await existingQuery.maybeSingle();
+
+      if (!existing) {
+        const { error } = await supabase.from("comics").insert({
+          user_id:      user.id,
+          series_id:    seriesId,
+          publisher_id: publisherId,
+          title:        release.title || series_name || "Untitled",
+          issue_number: release.issue_number ?? null,
+          comicvine_id: release.cv_id ?? release.metron_id ?? null,
+          cover_url,
+          release_date: release.store_date ?? release.cover_date ?? wednesday,
+        });
+        if (error) throw error;
+      }
+
+      setLibrarySet(prev => new Set([...prev, key]));
+    } catch (e) {
+      alert("Could not add release to library: " + e.message);
+    } finally {
+      setAdding(null);
+    }
+  }
+
   const pullReleases  = releases.filter(r => pullVolumeSet.has(r.cv_id));
   const otherReleases = releases.filter(r => !pullVolumeSet.has(r.cv_id));
   const weeklySpend   = pullReleases.reduce((sum, r) => sum + (r.price ?? DEFAULT_PRICE), 0);
@@ -141,7 +214,10 @@ export default function ReleasesClient() {
               {pullReleases.map(r => (
                 <ReleaseRow key={r.cv_id} release={r} isPulled
                   isToggling={toggling === r.cv_id}
-                  onToggle={() => togglePullList(r)} />
+                  isAdding={adding === releaseKey(r)}
+                  isInLibrary={librarySet.has(releaseKey(r))}
+                  onToggle={() => togglePullList(r)}
+                  onAdd={() => addToLibrary(r)} />
               ))}
             </section>
           )}
@@ -152,7 +228,10 @@ export default function ReleasesClient() {
               {otherReleases.map(r => (
                 <ReleaseRow key={r.cv_id} release={r}
                   isToggling={toggling === r.cv_id}
-                  onToggle={() => togglePullList(r)} />
+                  isAdding={adding === releaseKey(r)}
+                  isInLibrary={librarySet.has(releaseKey(r))}
+                  onToggle={() => togglePullList(r)}
+                  onAdd={() => addToLibrary(r)} />
               ))}
             </section>
           )}
@@ -166,7 +245,7 @@ export default function ReleasesClient() {
   );
 }
 
-function ReleaseRow({ release, isPulled, isToggling, onToggle }) {
+function ReleaseRow({ release, isPulled, isToggling, isAdding, isInLibrary, onToggle, onAdd }) {
   const price = release.price ?? DEFAULT_PRICE;
   return (
     <div style={{ ...s.row, ...(isPulled ? s.rowHighlight : {}) }}>
@@ -179,6 +258,14 @@ function ReleaseRow({ release, isPulled, isToggling, onToggle }) {
         {release.publisher && <p style={s.releaseMeta}>{release.publisher}</p>}
       </div>
       <span style={s.price}>${price.toFixed(2)}</span>
+      <button
+        style={{ ...s.libraryBtn, ...(isInLibrary ? s.libraryBtnOn : {}) }}
+        onClick={onAdd}
+        disabled={isAdding || isInLibrary}
+        title={isInLibrary ? "Already in library" : "Add bought issue to library"}
+      >
+        {isAdding ? "Adding…" : isInLibrary ? "In Library" : "Bought"}
+      </button>
       <button
         style={{ ...s.toggleBtn, ...(isPulled ? s.toggleBtnOn : {}) }}
         onClick={onToggle}
@@ -205,6 +292,21 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function addDays(dateStr, days) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  date.setDate(date.getDate() + days);
+  return formatDate(date);
+}
+
+function releaseKey(release) {
+  return `${normalize(release.series_name || release.title)}|${String(release.issue_number ?? "")}`;
+}
+
+function libraryKey(comic) {
+  return `${normalize(comic.series?.name || comic.title)}|${String(comic.issue_number ?? "")}`;
+}
+
 const s = {
   page:           { maxWidth: 720 },
   header:         { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16 },
@@ -223,6 +325,8 @@ const s = {
   releaseTitle:   { color: "var(--text)", fontSize: 14, fontWeight: 600 },
   releaseMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
   price:          { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, flexShrink: 0 },
+  libraryBtn:     { minWidth: 74, padding: "7px 10px 5px", borderRadius: 8, background: "var(--hero-gold)", border: "2px solid var(--ink-000)", color: "var(--ink-000)", fontSize: 12, fontFamily: "var(--font-burst)", letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", boxShadow: "2px 2px 0 var(--ink-000)", flexShrink: 0 },
+  libraryBtnOn:   { background: "var(--hero-cyan)", color: "var(--ink-000)", cursor: "default", opacity: 0.85 },
   toggleBtn:      { width: 32, height: 32, borderRadius: "50%", background: "var(--bg-card)", border: "2px solid var(--ink-000)", color: "var(--text-soft)", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, boxShadow: "2px 2px 0 var(--ink-000)" },
   toggleBtnOn:    { background: "var(--accent)", borderColor: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 14 },
 };

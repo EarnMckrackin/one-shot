@@ -33,6 +33,24 @@ export default function ArcsClient() {
     load();
   }
 
+  async function deleteArc(arc) {
+    if (arc.is_system) return;
+    if (!confirm(`Delete "${arc.name}" and its reading order?`)) return;
+
+    const { error } = await supabase
+      .from("story_arcs")
+      .delete()
+      .eq("id", arc.id)
+      .eq("is_system", false);
+
+    if (error) {
+      alert("Could not delete reading order: " + error.message);
+      return;
+    }
+
+    load();
+  }
+
   const systemArcs = arcs.filter((a) => a.is_system);
   const myArcs     = arcs.filter((a) => !a.is_system);
 
@@ -59,7 +77,7 @@ export default function ArcsClient() {
       {myArcs.length > 0 && (
         <section style={{ marginBottom: 32 }}>
           <h2 style={s.sectionHead}>My Reading Orders</h2>
-          <ArcGrid arcs={myArcs} />
+          <ArcGrid arcs={myArcs} onDelete={deleteArc} />
         </section>
       )}
 
@@ -71,7 +89,7 @@ export default function ArcsClient() {
   );
 }
 
-function ArcGrid({ arcs }) {
+function ArcGrid({ arcs, onDelete }) {
   return (
     <div style={s.grid}>
       {arcs.map((arc) => {
@@ -80,19 +98,26 @@ function ArcGrid({ arcs }) {
         const pct     = total ? Math.round((owned / total) * 100) : 0;
 
         return (
-          <Link key={arc.id} href={`/arcs/${arc.id}`} style={s.arcCard}>
-            <div style={s.arcTop}>
-              <p style={s.arcName}>{arc.name}</p>
-              {arc.is_system && <span style={s.systemTag}>Classic</span>}
-            </div>
-            {arc.description && <p style={s.arcDesc}>{arc.description}</p>}
-            <div style={s.arcBottom}>
-              <div style={s.progressBar}>
-                <div style={{ ...s.progressFill, width: `${pct}%` }} />
+          <div key={arc.id} style={s.arcCard}>
+            <Link href={`/arcs/${arc.id}`} style={s.arcLink}>
+              <div style={s.arcTop}>
+                <p style={s.arcName}>{arc.name}</p>
+                {arc.is_system && <span style={s.systemTag}>Classic</span>}
               </div>
-              <span style={s.arcMeta}>{owned}/{total} owned</span>
-            </div>
-          </Link>
+              {arc.description && <p style={s.arcDesc}>{arc.description}</p>}
+              <div style={s.arcBottom}>
+                <div style={s.progressBar}>
+                  <div style={{ ...s.progressFill, width: `${pct}%` }} />
+                </div>
+                <span style={s.arcMeta}>{owned}/{total} owned</span>
+              </div>
+            </Link>
+            {!arc.is_system && onDelete && (
+              <button type="button" style={s.deleteBtn} onClick={() => onDelete(arc)}>
+                Delete
+              </button>
+            )}
+          </div>
         );
       })}
     </div>
@@ -107,7 +132,8 @@ const s = {
   msg:         { color: "var(--text-soft)", padding: "40px 0" },
   sectionHead: { color: "var(--text-faint)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
   grid:        { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 },
-  arcCard:     { background: "var(--bg-card)", backgroundImage: "var(--hatch-dark)", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 8 },
+  arcCard:     { background: "var(--bg-card)", backgroundImage: "var(--hatch-dark)", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 10 },
+  arcLink:     { display: "flex", flexDirection: "column", gap: 8, flex: 1 },
   arcTop:      { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
   arcName:     { color: "var(--text)", fontWeight: 700, fontSize: 18, lineHeight: 1.1, fontFamily: "var(--font-display)", letterSpacing: "0.02em", textTransform: "uppercase" },
   systemTag:   { background: "var(--hero-gold)", color: "var(--ink-000)", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, letterSpacing: 0.5, flexShrink: 0, fontFamily: "var(--font-burst)", transform: "rotate(-5deg)", border: "1px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
@@ -116,4 +142,5 @@ const s = {
   progressBar: { flex: 1, height: 10, background: "var(--border)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--ink-000)" },
   progressFill:{ height: "100%", background: "var(--hero-cyan)", backgroundImage: "var(--halftone-dots)", backgroundSize: "var(--halftone-size)", borderRadius: 999 },
   arcMeta:     { color: "var(--hero-gold)", fontSize: 16, flexShrink: 0, fontFamily: "var(--font-burst)", letterSpacing: "0.05em" },
+  deleteBtn:   { alignSelf: "flex-start", color: "var(--text-faint)", border: "1.5px solid var(--ink-000)", borderRadius: 8, padding: "5px 10px 3px", background: "var(--bg-surface)", fontFamily: "var(--font-burst)", letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 11, boxShadow: "2px 2px 0 var(--ink-000)" },
 };

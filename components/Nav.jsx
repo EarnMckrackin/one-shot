@@ -229,7 +229,7 @@ const s = {
 
   brandWrap: {
     display:      "block",
-    padding:      "6px 10px 12px",
+    padding:      "6px 14px 12px",
     margin:       "0 4px 18px",
     borderBottom: "2px solid var(--ink-000)",
   },
@@ -263,7 +263,10 @@ const s = {
   link: {
     position:      "relative",
     display:       "block",
-    padding:       "8px 10px 6px 14px",
+    paddingTop:    8,
+    paddingRight:  12,
+    paddingBottom: 6,
+    paddingLeft:   22,
     fontFamily:    "var(--font-display)",
     fontSize:      15,
     letterSpacing: "0.01em",
@@ -287,7 +290,7 @@ const s = {
   linkActive: {
     background:  "var(--ink-300)",
     color:       "var(--text)",
-    paddingLeft: 16,
+    paddingLeft: 24,
   },
   rail: {
     position:     "absolute",

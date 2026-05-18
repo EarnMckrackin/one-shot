@@ -6,6 +6,24 @@ import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 
 const MODES = ["Camera", "Upload Image", "Upload PDF"];
+const MAJOR_PUBLISHERS = [
+  "Marvel",
+  "DC",
+  "Image",
+  "Dark Horse",
+  "IDW",
+  "BOOM! Studios",
+  "Dynamite",
+  "Valiant",
+  "Archie",
+  "Oni Press",
+  "Titan",
+  "Vault",
+  "Mad Cave",
+  "Skybound",
+  "DSTLRY",
+  "Other",
+];
 
 export default function ScanClient() {
   const router       = useRouter();
@@ -23,6 +41,28 @@ export default function ScanClient() {
   const [pdfDetails, setPdfDetails] = useState({ title: "", issue: "", series: "" });
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching]     = useState(false);
+  const [publisherChoice, setPublisherChoice] = useState("");
+  const [customPublisher, setCustomPublisher] = useState("");
+
+  function selectedPublisher() {
+    return publisherChoice === "Other" ? customPublisher.trim() : publisherChoice;
+  }
+
+  function syncPublisher(value) {
+    const publisher = value?.trim() || "";
+    if (!publisher) {
+      setPublisherChoice("");
+      setCustomPublisher("");
+      return;
+    }
+    if (MAJOR_PUBLISHERS.includes(publisher)) {
+      setPublisherChoice(publisher);
+      setCustomPublisher("");
+      return;
+    }
+    setPublisherChoice("Other");
+    setCustomPublisher(publisher);
+  }
 
   async function startCamera() {
     try {
@@ -58,12 +98,13 @@ export default function ScanClient() {
       const res  = await fetch("/api/scan", {
         method:  "POST",
         headers: { "content-type": "application/json" },
-        body:    JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
+        body:    JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg", publisher: selectedPublisher() || undefined }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setExtracted(data.extracted);
       setResults(data.results ?? []);
+      syncPublisher(data.extracted?.publisher);
       const q = [data.extracted?.series, data.extracted?.issue && `#${data.extracted.issue}`].filter(Boolean).join(" ");
       setManualQuery(q);
     } catch (e) {
@@ -82,7 +123,7 @@ export default function ScanClient() {
       const res  = await fetch("/api/scan", {
         method:  "POST",
         headers: { "content-type": "application/json" },
-        body:    JSON.stringify({ query: manualQuery.trim() }),
+        body:    JSON.stringify({ query: manualQuery.trim(), publisher: selectedPublisher() || undefined }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -117,8 +158,8 @@ export default function ScanClient() {
       const { data: { user } } = await supabase.auth.getUser();
 
       let publisherId = null;
-      if (result.series_name || result.publisher) {
-        const pubName = result.publisher ?? "Unknown";
+      if (result.series_name || result.publisher || selectedPublisher()) {
+        const pubName = selectedPublisher() || result.publisher || "Unknown";
         const { data: pub } = await supabase
           .from("publishers")
           .upsert({ user_id: user.id, name: pubName }, { onConflict: "user_id,name" })
@@ -187,11 +228,20 @@ export default function ScanClient() {
 
       let publisherId = null;
       let seriesId    = null;
+      const publisher = selectedPublisher();
+
+      if (publisher) {
+        const { data: pub } = await supabase
+          .from("publishers")
+          .upsert({ user_id: user.id, name: publisher }, { onConflict: "user_id,name" })
+          .select("id").single();
+        publisherId = pub?.id;
+      }
 
       if (pdfDetails.series) {
         const { data: ser } = await supabase
           .from("series")
-          .upsert({ user_id: user.id, name: pdfDetails.series }, { onConflict: "user_id,name" })
+          .upsert({ user_id: user.id, publisher_id: publisherId, name: pdfDetails.series }, { onConflict: "user_id,name" })
           .select("id").single();
         seriesId = ser?.id;
       }
@@ -202,7 +252,7 @@ export default function ScanClient() {
         publisher_id: publisherId,
         title:        pdfDetails.title || pdfFile.name.replace(".pdf", ""),
         issue_number: pdfDetails.issue || null,
-        has_pdf:      true,
+        has_pdf:      false,
       }).select("id").single();
 
       if (error) throw error;
@@ -243,6 +293,13 @@ export default function ScanClient() {
           </button>
         ))}
       </div>
+
+      <PublisherPicker
+        publisherChoice={publisherChoice}
+        customPublisher={customPublisher}
+        onPublisherChoice={setPublisherChoice}
+        onCustomPublisher={setCustomPublisher}
+      />
 
       {/* Camera mode */}
       {mode === "Camera" && !results.length && (
@@ -318,7 +375,10 @@ export default function ScanClient() {
                 <div style={{ textAlign: "left" }}>
                   <p style={s.resultSeries}>{r.series_name}</p>
                   <p style={s.resultTitle}>{r.title} {r.issue_number ? `#${r.issue_number}` : ""}</p>
-                  <p style={s.resultMeta}>{r.release_date}</p>
+                  <p style={s.resultMeta}>
+                    {[r.publisher, r.release_date, r.source].filter(Boolean).join(" · ")}
+                    {Number.isFinite(r.match_score) ? ` · Match ${Math.max(0, Math.round(r.match_score))}` : ""}
+                  </p>
                 </div>
               </button>
             ))}
@@ -349,12 +409,45 @@ export default function ScanClient() {
   );
 }
 
+function PublisherPicker({ publisherChoice, customPublisher, onPublisherChoice, onCustomPublisher }) {
+  return (
+    <div style={s.publisherBox}>
+      <label style={s.publisherLabel} htmlFor="publisher-select">Publisher</label>
+      <select
+        id="publisher-select"
+        className="ink-input"
+        value={publisherChoice}
+        onChange={(e) => onPublisherChoice(e.target.value)}
+        style={s.publisherSelect}
+      >
+        <option value="">Auto / Unknown</option>
+        {MAJOR_PUBLISHERS.map((publisher) => (
+          <option key={publisher} value={publisher}>{publisher}</option>
+        ))}
+      </select>
+      {publisherChoice === "Other" && (
+        <input
+          className="ink-input"
+          placeholder="Publisher name"
+          value={customPublisher}
+          onChange={(e) => onCustomPublisher(e.target.value)}
+          style={s.publisherCustom}
+        />
+      )}
+    </div>
+  );
+}
+
 const s = {
   page:          { maxWidth: 600, margin: "0 auto" },
   title:         { fontSize: 32, fontFamily: "var(--font-serif)", fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" },
   modeBar:       { display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" },
   chip:          { padding: "8px 16px 6px", borderRadius: 999, background: "var(--bg-card)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", fontFamily: "var(--font-burst)", letterSpacing: "0.1em", textTransform: "uppercase" },
   chipActive:    { background: "var(--accent)", color: "#fff", transform: "rotate(-1.5deg)", backgroundImage: "var(--hatch-dark)" },
+  publisherBox:  { display: "grid", gridTemplateColumns: "auto minmax(180px, 260px)", alignItems: "center", gap: 10, marginBottom: 24 },
+  publisherLabel:{ color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
+  publisherSelect: { minHeight: 42 },
+  publisherCustom: { gridColumn: "2 / 3" },
   cameraSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
   viewfinder:    { width: "100%", maxWidth: 320, aspectRatio: "2/3", background: "var(--bg-surface)", borderRadius: 12, overflow: "hidden", position: "relative", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   video:         { width: "100%", height: "100%", objectFit: "cover" },

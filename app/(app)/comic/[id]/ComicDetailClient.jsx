@@ -128,7 +128,10 @@ export default function ComicDetailClient({ comic: initial }) {
             <InkButton onClick={() => setLogOpen(!logOpen)}>Log Reading</InkButton>
             <InkButton variant="ghost" onClick={() => setSchedOpen(!schedOpen)}>+ Schedule</InkButton>
             {comic.has_pdf && comic.drive_file_id && (
-              <InkButton href={`/api/google/pdf/${comic.id}`} external variant="gold">Read PDF</InkButton>
+              <InkButton href={`/comic/${comic.id}/read`} variant="gold">Read PDF</InkButton>
+            )}
+            {comic.has_pdf && !comic.drive_file_id && (
+              <span style={s.pdfMissing}>PDF upload did not finish</span>
             )}
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>
@@ -246,6 +249,7 @@ const s = {
   statVal:       { color: "var(--text)", fontFamily: "var(--font-burst)", fontSize: 28 },
   statLabel:     { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, fontFamily: "var(--font-display)" },
   actions:       { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 },
+  pdfMissing:    { display: "inline-flex", alignItems: "center", minHeight: 38, color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },
   inlineForm:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "3px 3px 0 var(--ink-000)" },
   formLabel:     { color: "var(--text-soft)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 600 },
   section:       { marginBottom: 28 },

@@ -197,7 +197,7 @@ const s = {
   list:          { display: "flex", flexDirection: "column", gap: 10 },
   schedRow:      { display: "flex", alignItems: "center", gap: 14, background: "var(--bg-card)", borderRadius: 12, padding: "12px 16px 12px 12px", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)" },
   schedRowDone:  { opacity: 0.5 },
-  cover:         { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
+  cover:         { width: "clamp(44px, 6vw, 72px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   series:        { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
   comicTitle:    { color: "var(--text)", fontWeight: 600, fontSize: 14, display: "block", marginTop: 2 },
   actions:       { display: "flex", alignItems: "center", gap: 8 },

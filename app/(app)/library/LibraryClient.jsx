@@ -429,8 +429,8 @@ const s = {
     transform: "translate(-1px,-1px) rotate(-1.5deg)",
   },
 
-  grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 },
-  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 },
+  grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(190px, 100%), 1fr))", gap: 12 },
+  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(170px, 100%), 1fr))", gap: 14 },
 
   pubCard:         { width: "100%", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left", font: "inherit" },
   pubCardActive:   { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent)" },

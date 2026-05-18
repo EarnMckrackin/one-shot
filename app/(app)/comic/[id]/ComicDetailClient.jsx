@@ -487,7 +487,7 @@ const s = {
   priorHint:     { color: "var(--text-faint)", fontSize: 13, padding: "12px 0" },
   priorList:     { display: "flex", flexDirection: "column", gap: 10 },
   priorRow:      { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 10, boxShadow: "2px 2px 0 var(--ink-000)" },
-  priorCover:    { width: 48, height: 72, objectFit: "cover", borderRadius: 6, flexShrink: 0, background: "var(--bg-surface)" },
+  priorCover:    { width: "clamp(48px, 6vw, 76px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 6, flexShrink: 0, background: "var(--bg-surface)" },
   priorCoverBlank: { border: "1px solid var(--border)" },
   priorMeta:     { flex: 1, minWidth: 0 },
   priorTitle:    { color: "var(--text)", fontSize: 14, fontWeight: 700 },

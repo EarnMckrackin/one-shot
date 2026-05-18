@@ -152,7 +152,7 @@ const s = {
   clearBtn:    { display: "block", width: "100%", background: "none", color: "var(--text-faint)", padding: "10px", fontSize: 13, cursor: "pointer", borderTop: "1px solid var(--border)" },
   list:        { display: "flex", flexDirection: "column" },
   pullRow:     { display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: "1px solid var(--border)" },
-  seriesCover: { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
+  seriesCover: { width: "clamp(44px, 6vw, 72px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   seriesName:  { color: "var(--text)", fontWeight: 600, fontSize: 15 },
   publisherName: { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
   removeBtn:   { background: "none", color: "var(--text-faint)", fontSize: 16, cursor: "pointer", padding: "4px 8px" },

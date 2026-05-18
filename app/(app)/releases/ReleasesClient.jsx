@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
-import { readCachedReleases, writeCachedReleases, writePriceCacheFromReleases } from "../../../lib/local-data-store";
+import { readCachedReleases, upsertLocalLibraryComic, writeCachedReleases, writePriceCacheFromReleases } from "../../../lib/local-data-store";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -148,19 +148,21 @@ export default function ReleasesClient() {
     setAdding(key);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("You need to be signed in.");
       const { series_name, publisher, cover_url, volume_cv_id } = release;
 
       let publisherId = null;
       if (publisher) {
-        const { data: pub } = await supabase.from("publishers")
+        const { data: pub, error: publisherError } = await supabase.from("publishers")
           .upsert({ user_id: user.id, name: publisher }, { onConflict: "user_id,name" })
           .select("id").single();
+        if (publisherError) throw publisherError;
         publisherId = pub?.id;
       }
 
       let seriesId = null;
       if (series_name) {
-        const { data: ser } = await supabase.from("series")
+        const { data: ser, error: seriesError } = await supabase.from("series")
           .upsert({
             user_id:      user.id,
             publisher_id: publisherId,
@@ -169,6 +171,7 @@ export default function ReleasesClient() {
             cover_url,
           }, { onConflict: "user_id,name" })
           .select("id").single();
+        if (seriesError) throw seriesError;
         seriesId = ser?.id;
       }
 
@@ -185,11 +188,14 @@ export default function ReleasesClient() {
         ? existingQuery.eq("issue_number", release.issue_number)
         : existingQuery.is("issue_number", null);
 
-      const { data: existing } = await existingQuery.maybeSingle();
+      const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+      if (existingError) throw existingError;
+
+      let libraryComicId = existing?.id ?? null;
 
       if (!existing) {
         const details = await enrichRelease(release);
-        const { error } = await supabase.from("comics").insert({
+        const { data: inserted, error } = await supabase.from("comics").insert({
           user_id:      user.id,
           series_id:    seriesId,
           publisher_id: publisherId,
@@ -202,14 +208,20 @@ export default function ReleasesClient() {
           writers:      details?.writers ?? null,
           artists:      details?.artists ?? null,
           characters:   details?.characters ?? null,
-        });
+        }).select("id").single();
         if (error) throw error;
+        libraryComicId = inserted?.id ?? null;
       } else if (!existing.description) {
         await fetch("/api/comics/enrich", {
           method:  "POST",
           headers: { "content-type": "application/json" },
           body:    JSON.stringify({ comicId: existing.id }),
         });
+      }
+
+      if (libraryComicId) {
+        const comic = await fetchLibraryComic(libraryComicId);
+        if (comic) upsertLocalLibraryComic(comic);
       }
 
       const ownershipKey = releaseOwnershipKey(release);
@@ -301,6 +313,16 @@ async function enrichRelease(release) {
   }
 }
 
+async function fetchLibraryComic(id) {
+  const { data, error } = await supabase
+    .from("comics")
+    .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, estimated_value, release_date, created_at, comicvine_id, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data ? { ...data, read_count: data.reading_log?.length ?? 0 } : null;
+}
+
 function ReleaseRow({ release, isPulled, isToggling, isAdding, isInLibrary, onToggle, onAdd }) {
   const price = release.price ?? DEFAULT_PRICE;
   return (
@@ -390,7 +412,7 @@ const s = {
   weeklySpend:    { color: "var(--ink-000)", background: "var(--hero-gold)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-burst)", padding: "4px 10px", border: "1px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", transform: "rotate(-4deg)" },
   row:            { display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" },
   rowHighlight:   { background: "var(--bg-surface)", backgroundImage: "var(--halftone-dots-gold)", backgroundSize: "var(--halftone-size)", borderRadius: 10, padding: "10px 12px", marginBottom: 2, borderBottom: "none", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
-  cover:          { width: 44, height: 66, objectFit: "cover", borderRadius: 4, flexShrink: 0 },
+  cover:          { width: "clamp(44px, 6vw, 72px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   releaseTitle:   { color: "var(--text)", fontSize: 14, fontWeight: 600 },
   releaseMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
   price:          { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, flexShrink: 0 },

@@ -6,7 +6,9 @@ export default function PWARegistration() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-    navigator.serviceWorker.register("/sw.js").catch((error) => {
+    navigator.serviceWorker.register("/sw.js").then((registration) => {
+      registration.update().catch(() => {});
+    }).catch((error) => {
       console.error("Failed to register service worker", error);
     });
   }, []);

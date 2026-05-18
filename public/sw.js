@@ -1,4 +1,4 @@
-const CACHE_NAME = "one-shot-v1";
+const CACHE_NAME = "one-shot-v2";
 const APP_SHELL = [
   "/",
   "/library",
@@ -29,6 +29,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/_next/")) return;
+  if (url.search) return;
 
   if (request.mode === "navigate") {
     event.respondWith(
@@ -40,6 +42,7 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
+      if (!APP_SHELL.includes(url.pathname)) return fetch(request);
       return fetch(request).then((response) => {
         if (!response || response.status !== 200 || response.type !== "basic") return response;
         const copy = response.clone();

@@ -311,7 +311,7 @@ function sortComics(comics, sortBy) {
 }
 
 function hasDigitalPdf(comic) {
-  return Boolean(comic.has_pdf && comic.drive_file_id);
+  return Boolean(comic.has_pdf);
 }
 
 function readCachedLibrary() {

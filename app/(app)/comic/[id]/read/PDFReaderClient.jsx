@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { getLocalPdfUrl } from "../../../../../lib/local-pdf-store";
 
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
@@ -10,14 +11,44 @@ export default function PDFReaderClient({ comic }) {
   const [renderedPage, setRenderedPage] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState("");
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [sourceLabel, setSourceLabel] = useState("");
 
   const title = useMemo(() => {
     return `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`;
   }, [comic.title, comic.issue_number]);
 
-  const pdfUrl = `/api/google/pdf/${comic.id}`;
+  useEffect(() => {
+    let active = true;
+
+    async function resolvePdf() {
+      setError("");
+      const local = await getLocalPdfUrl(comic.id).catch(() => null);
+      if (!active) return;
+      if (local?.url) {
+        setPdfUrl(local.url);
+        setSourceLabel("Device");
+        return;
+      }
+      if (comic.drive_file_id) {
+        setPdfUrl(`/api/google/pdf/${comic.id}`);
+        setSourceLabel("Google Drive");
+        return;
+      }
+      setPdfUrl("");
+      setSourceLabel("");
+      setError("This PDF is not stored on this device. Add or replace the PDF from the comic detail page.");
+    }
+
+    resolvePdf();
+
+    return () => {
+      active = false;
+    };
+  }, [comic.id, comic.drive_file_id]);
 
   useEffect(() => {
+    if (!pdfUrl) return undefined;
     let cancelled = false;
     const renderRun = renderRunRef.current + 1;
     renderRunRef.current = renderRun;
@@ -85,12 +116,13 @@ export default function PDFReaderClient({ comic }) {
         <div style={s.titleWrap}>
           <p style={s.eyebrow}>PDF Reader</p>
           <h1 style={s.title}>{title}</h1>
+          {sourceLabel && <p style={s.source}>{sourceLabel}</p>}
         </div>
         <div style={s.controls}>
           <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.7, z - 0.15))}>-</button>
           <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
           <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(1.8, z + 0.15))}>+</button>
-          <a href={pdfUrl} style={s.download}>Open file</a>
+          {pdfUrl && <a href={pdfUrl} style={s.download}>Open file</a>}
         </div>
       </div>
 
@@ -98,7 +130,7 @@ export default function PDFReaderClient({ comic }) {
         <div style={s.notice}>
           <h2 style={s.noticeTitle}>Could not render the PDF</h2>
           <p style={s.noticeText}>{error}</p>
-          <a href={pdfUrl} style={s.noticeLink}>Open the PDF file</a>
+          {pdfUrl && <a href={pdfUrl} style={s.noticeLink}>Open the PDF file</a>}
         </div>
       ) : (
         <>
@@ -138,6 +170,13 @@ const s = {
     textTransform: "uppercase",
   },
   titleWrap: { flex: 1, minWidth: 180 },
+  source: {
+    color: "var(--text-faint)",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginTop: 2,
+  },
   eyebrow: {
     fontFamily: "var(--font-burst)",
     fontSize: 11,

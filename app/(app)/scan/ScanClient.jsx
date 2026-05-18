@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 import { CapacitorPluginMlKitTextRecognition } from "@pantrist/capacitor-plugin-ml-kit-text-recognition";
+import { saveLocalPdf } from "../../../lib/local-pdf-store";
 
 const MODES = ["Search", "Camera", "Upload Image", "Upload PDF"];
 const LOCAL_ADD_STATE_KEY = "oneshot:add-state:v1";
@@ -265,11 +266,6 @@ export default function ScanClient() {
     setPdfProgress("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const driveStatus = await fetch("/api/google/status").then((res) => res.json()).catch(() => ({ connected: false }));
-      if (!driveStatus.connected) {
-        router.push("/api/google/auth");
-        return;
-      }
 
       let publisherId = null;
       let seriesId    = null;
@@ -301,13 +297,13 @@ export default function ScanClient() {
           publisher_id: publisherId,
           title:        singleFile && pdfDetails.title ? pdfDetails.title : titleFromPdfName(file.name),
           issue_number: singleFile ? (pdfDetails.issue || null) : null,
-          has_pdf:      false,
+          has_pdf:      true,
         }).select("id").single();
 
         if (error) throw error;
         lastComicId = comic.id;
 
-        await uploadPdfForComic(file, comic.id);
+        await saveLocalPdf(comic.id, file);
       }
 
       setPdfFiles([]);
@@ -319,45 +315,6 @@ export default function ScanClient() {
       setAdding(false);
       setPdfProgress("");
     }
-  }
-
-  async function uploadPdfForComic(file, comicId) {
-    const sessionRes = await fetch("/api/google/upload-session", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        filename: file.name,
-        fileSize: file.size,
-      }),
-    });
-    const session = await sessionRes.json().catch(() => ({}));
-
-    if (sessionRes.status === 403 && session.code === "not_connected") {
-      router.push("/api/google/auth");
-      throw new Error("Google Drive not connected.");
-    }
-
-    if (!sessionRes.ok) throw new Error(session.error || `Upload failed with HTTP ${sessionRes.status}.`);
-
-    const uploadRes = await fetch(session.uploadUrl, {
-      method: "PUT",
-      headers: { "content-type": "application/pdf" },
-      body: file,
-    });
-    const driveFile = await uploadRes.json().catch(() => ({}));
-    if (!uploadRes.ok) throw new Error(driveFile?.error?.message || `Google Drive upload failed with HTTP ${uploadRes.status}.`);
-
-    const completeRes = await fetch("/api/google/upload-complete", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        comicId,
-        drive_file_id: driveFile.id,
-        drive_view_url: driveFile.webViewLink,
-      }),
-    });
-    const completed = await completeRes.json().catch(() => ({}));
-    if (!completeRes.ok) throw new Error(completed.error || `Could not save PDF to comic. HTTP ${completeRes.status}.`);
   }
 
   return (
@@ -489,7 +446,7 @@ export default function ScanClient() {
           <input className="ink-input" placeholder="Title (single PDF only; otherwise file names are used)" value={pdfDetails.title} onChange={(e) => setPdfDetails({ ...pdfDetails, title: e.target.value })} disabled={pdfFiles.length > 1} />
           <input className="ink-input" placeholder="Issue # (single PDF only)" value={pdfDetails.issue} onChange={(e) => setPdfDetails({ ...pdfDetails, issue: e.target.value })} disabled={pdfFiles.length > 1} />
           <input className="ink-input" placeholder="Series name" value={pdfDetails.series} onChange={(e) => setPdfDetails({ ...pdfDetails, series: e.target.value })} />
-          <p style={s.hint}>PDFs will be uploaded from this device to your Google Drive and linked to your library.</p>
+          <p style={s.hint}>PDFs are saved on this device for offline reading. Google Drive sync can stay optional.</p>
           {pdfProgress && <p style={s.uploadProgress}>{pdfProgress}</p>}
           <InkButton type="submit" size="lg" disabled={!pdfFiles.length || adding}>
             {adding ? "Uploading…" : `Add ${pdfFiles.length || ""} to Library`}

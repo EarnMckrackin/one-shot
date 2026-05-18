@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabase-browser";
 import InkButton from "../../../../components/InkButton";
+import { saveLocalPdf } from "../../../../lib/local-pdf-store";
 
 export default function ComicDetailClient({ comic: initial }) {
   const router = useRouter();
@@ -154,48 +155,16 @@ export default function ComicDetailClient({ comic: initial }) {
     setPdfError(null);
 
     try {
-      const sessionRes = await fetch("/api/google/upload-session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          fileSize: file.size,
-        }),
-      });
-      const session = await sessionRes.json().catch(() => ({}));
-
-      if (sessionRes.status === 403 && session.code === "not_connected") {
-        router.push("/api/google/auth");
-        return;
-      }
-
-      if (!sessionRes.ok) throw new Error(session.error || `Upload failed with HTTP ${sessionRes.status}.`);
-
-      const uploadRes = await fetch(session.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": "application/pdf" },
-        body: file,
-      });
-      const driveFile = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok) throw new Error(driveFile?.error?.message || `Google Drive upload failed with HTTP ${uploadRes.status}.`);
-
-      const completeRes = await fetch("/api/google/upload-complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          comicId: comic.id,
-          drive_file_id: driveFile.id,
-          drive_view_url: driveFile.webViewLink,
-        }),
-      });
-      const data = await completeRes.json().catch(() => ({}));
-      if (!completeRes.ok) throw new Error(data.error || `Could not save PDF to comic. HTTP ${completeRes.status}.`);
+      await saveLocalPdf(comic.id, file);
+      const { error } = await supabase
+        .from("comics")
+        .update({ has_pdf: true })
+        .eq("id", comic.id);
+      if (error) throw error;
 
       setComic((current) => ({
         ...current,
         has_pdf: true,
-        drive_file_id: data.drive_file_id,
-        drive_view_url: data.drive_view_url,
       }));
     } catch (e) {
       setPdfError(e.message);
@@ -296,7 +265,7 @@ export default function ComicDetailClient({ comic: initial }) {
             ? <img src={comic.cover_url} alt={comic.title} style={s.cover} />
             : <div style={{ ...s.cover, ...s.coverPlaceholder }}>No cover</div>
           }
-          {comic.has_pdf && comic.drive_file_id && <span style={s.pdfBadge}>PDF</span>}
+          {comic.has_pdf && <span style={s.pdfBadge}>PDF</span>}
           <InkButton variant="ghost" size="sm" onClick={openCoverPicker} style={s.changeCoverBtn}>Change Cover</InkButton>
         </div>
 
@@ -320,11 +289,11 @@ export default function ComicDetailClient({ comic: initial }) {
           <div style={s.actions}>
             <InkButton onClick={() => setLogOpen(!logOpen)}>Log Reading</InkButton>
             <InkButton variant="ghost" onClick={() => setSchedOpen(!schedOpen)}>+ Schedule</InkButton>
-            {comic.has_pdf && comic.drive_file_id && (
+            {comic.has_pdf && (
               <InkButton href={`/comic/${comic.id}/read`} variant="gold">Read PDF</InkButton>
             )}
             <label className={`ink-btn ink-btn--md ink-btn--ghost ${uploadingPdf ? "is-disabled" : ""}`} style={uploadingPdf ? s.disabledLabel : undefined}>
-              {comic.has_pdf && comic.drive_file_id ? "Replace PDF" : "Add PDF"}
+              {comic.has_pdf ? "Replace PDF" : "Add PDF"}
               <input
                 type="file"
                 accept="application/pdf"
@@ -333,9 +302,6 @@ export default function ComicDetailClient({ comic: initial }) {
                 style={{ display: "none" }}
               />
             </label>
-            {comic.has_pdf && !comic.drive_file_id && (
-              <span style={s.pdfMissing}>PDF upload did not finish</span>
-            )}
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>
           {pdfError && <p style={s.pdfError}>{pdfError}</p>}

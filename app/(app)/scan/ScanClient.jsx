@@ -6,6 +6,7 @@ import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 import { CapacitorPluginMlKitTextRecognition } from "@pantrist/capacitor-plugin-ml-kit-text-recognition";
 import { saveLocalPdf } from "../../../lib/local-pdf-store";
+import { upsertLocalLibraryComic } from "../../../lib/local-data-store";
 
 const MODES = ["Search", "Camera", "Upload Image", "Upload PDF"];
 const LOCAL_ADD_STATE_KEY = "oneshot:add-state:v1";
@@ -230,6 +231,8 @@ export default function ScanClient() {
           characters:   result.characters,
         }).eq("id", replaceId);
         if (error) throw error;
+        const updated = await fetchLibraryComic(replaceId);
+        if (updated) upsertLocalLibraryComic(updated);
         router.push(`/comic/${replaceId}`);
         return;
       }
@@ -250,6 +253,8 @@ export default function ScanClient() {
       }).select("id").single();
 
       if (error) throw error;
+      const saved = await fetchLibraryComic(comic.id);
+      if (saved) upsertLocalLibraryComic(saved);
       saveLocalAddState({ query: "", coverDataUrl: null, ocrText: "" });
       router.push(`/comic/${comic.id}`);
     } catch (e) {
@@ -257,6 +262,16 @@ export default function ScanClient() {
     } finally {
       setAdding(false);
     }
+  }
+
+  async function fetchLibraryComic(id) {
+    const { data, error } = await supabase
+      .from("comics")
+      .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, comicvine_id, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    return data ? { ...data, read_count: data.reading_log?.length ?? 0 } : null;
   }
 
   async function handlePDFSubmit(e) {

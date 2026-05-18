@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
-import { readCachedReleases, upsertLocalLibraryComic, writeCachedReleases } from "../../../lib/local-data-store";
+import { addBoughtReleaseKeys, readBoughtReleaseKeys, readCachedReleases, readLocalLibrary, upsertLocalLibraryComic, writeCachedReleases } from "../../../lib/local-data-store";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -44,7 +44,7 @@ export default function ReleasesClient() {
       setReleases(cached.releases);
       setPullSet(new Set(cached.pullKeys ?? []));
       setSeriesIdMap(cached.seriesIdMap ?? {});
-      setLibrarySet(new Set());
+      setLibrarySet(buildLibraryKeySet(readLocalLibrary().comics, readBoughtReleaseKeys()));
       setSource(cached.source ?? "local cache");
       setWarning("Showing cached releases while refreshing.");
       setCacheInfo(cached.cachedAt);
@@ -56,9 +56,7 @@ export default function ReleasesClient() {
         .select("series_id, series:series_id(name, comicvine_id)")
         .eq("active", true),
       supabase.from("comics")
-        .select("id, comicvine_id")
-        .gte("release_date", wednesday)
-        .lte("release_date", addDays(wednesday, 6)),
+        .select("id, title, issue_number, comicvine_id, series:series_id(name)"),
     ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }, { data: library }]) => {
       const releaseList = r ?? [];
       setReleases(releaseList);
@@ -80,9 +78,8 @@ export default function ReleasesClient() {
 
       setSeriesIdMap(map);
       const pullKeys = [...(pullMatches ?? []), ...Object.keys(map)];
-      const libraryKeys = (library ?? []).map(libraryKey).filter(Boolean);
       setPullSet(new Set(pullKeys));
-      setLibrarySet(new Set(libraryKeys));
+      setLibrarySet(buildLibraryKeySet(library ?? [], readBoughtReleaseKeys()));
       writeCachedReleases(wednesday, {
         releases: releaseList,
         source: releaseSource ?? null,
@@ -224,7 +221,12 @@ export default function ReleasesClient() {
       }
 
       const ownershipKey = releaseOwnershipKey(release);
-      if (ownershipKey) setLibrarySet(prev => new Set([...prev, ownershipKey]));
+      const boughtKeys = [ownershipKey, releaseKey(release)].filter(Boolean);
+      addBoughtReleaseKeys(boughtKeys);
+      setLibrarySet(prev => new Set([
+        ...prev,
+        ...boughtKeys,
+      ]));
     } catch (e) {
       alert("Could not add release to library: " + e.message);
     } finally {
@@ -267,7 +269,7 @@ export default function ReleasesClient() {
                 <ReleaseRow key={r.cv_id} release={r} isPulled
                   isToggling={toggling === r.cv_id}
                   isAdding={adding === releaseKey(r)}
-                  isInLibrary={librarySet.has(releaseOwnershipKey(r))}
+                  isInLibrary={isReleaseInLibrary(librarySet, r)}
                   onToggle={() => togglePullList(r)}
                   onAdd={() => addToLibrary(r)} />
               ))}
@@ -281,7 +283,7 @@ export default function ReleasesClient() {
                 <ReleaseRow key={r.cv_id} release={r}
                   isToggling={toggling === r.cv_id}
                   isAdding={adding === releaseKey(r)}
-                  isInLibrary={librarySet.has(releaseOwnershipKey(r))}
+                  isInLibrary={isReleaseInLibrary(librarySet, r)}
                   onToggle={() => togglePullList(r)}
                   onAdd={() => addToLibrary(r)} />
               ))}
@@ -369,13 +371,6 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-function addDays(dateStr, days) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(year, month - 1, day, 12);
-  date.setDate(date.getDate() + days);
-  return formatDate(date);
-}
-
 function releaseKey(release) {
   return `${normalize(release.series_name || release.title)}|${String(release.issue_number ?? "")}`;
 }
@@ -383,6 +378,10 @@ function releaseKey(release) {
 function releaseOwnershipKey(release) {
   const id = release.cv_id ?? release.metron_id;
   return id ? `issue:${String(id)}` : "";
+}
+
+function isReleaseInLibrary(librarySet, release) {
+  return librarySet.has(releaseOwnershipKey(release)) || librarySet.has(releaseKey(release));
 }
 
 function formatCacheTime(value) {
@@ -393,8 +392,22 @@ function formatCacheTime(value) {
   }
 }
 
-function libraryKey(comic) {
-  return comic.comicvine_id ? `issue:${String(comic.comicvine_id)}` : "";
+function buildLibraryKeySet(comics, extraKeys = []) {
+  return new Set([
+    ...(comics ?? []).flatMap(libraryKeysForComic),
+    ...extraKeys,
+  ].filter(Boolean));
+}
+
+function libraryKeysForComic(comic) {
+  return [
+    comic.comicvine_id ? `issue:${String(comic.comicvine_id)}` : "",
+    releaseKey({
+      series_name: comic.series?.name,
+      title: comic.title,
+      issue_number: comic.issue_number,
+    }),
+  ];
 }
 
 const s = {

@@ -48,7 +48,7 @@ export default function LibraryClient({ publishers, allSeries }) {
       setConnectionState(localConnectionState());
       const cached = readLocalLibrary();
       if (cached.comics.length) {
-        setComics(mergeLocalPrices(cached.comics));
+        setComics(cached.comics);
         setCacheInfo(cached.savedAt);
       }
       let q = supabase

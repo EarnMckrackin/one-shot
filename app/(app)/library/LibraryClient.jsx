@@ -21,6 +21,7 @@ export default function LibraryClient({ publishers, allSeries }) {
   const [pubFilter, setPubFilter] = useState("");
   const [seriesFilter, setSeriesFilter] = useState("");
   const [releaseFilter, setReleaseFilter] = useState("");
+  const [formatFilter, setFormatFilter] = useState("Both");
   const [sortBy, setSortBy]     = useState("created_desc");
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function LibraryClient({ publishers, allSeries }) {
       setLoading(true);
       let q = supabase
         .from("comics")
-        .select("id, title, issue_number, cover_url, has_pdf, release_date, created_at, series:series_id(name), publisher:publisher_id(name), reading_log(id)")
+        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(name), publisher:publisher_id(name), reading_log(id)")
         .order("created_at", { ascending: false });
 
       if (search)    q = q.ilike("title", `%${search}%`);
@@ -57,8 +58,14 @@ export default function LibraryClient({ publishers, allSeries }) {
     loadReleaseOptions();
   }, []);
 
+  const formatFiltered = comics.filter((comic) => {
+    if (formatFilter === "PDF") return hasDigitalPdf(comic);
+    if (formatFilter === "Physical") return !hasDigitalPdf(comic);
+    return true;
+  });
+
   const displayed = sortComics(
-    view === "Unread" ? comics.filter((c) => c.read_count === 0) : comics,
+    view === "Unread" ? formatFiltered.filter((c) => c.read_count === 0) : formatFiltered,
     sortBy
   );
 
@@ -135,6 +142,19 @@ export default function LibraryClient({ publishers, allSeries }) {
           ))}
         </select>
 
+        <label style={s.sortLabel} htmlFor="format-filter">Format</label>
+        <select
+          id="format-filter"
+          className="ink-input"
+          value={formatFilter}
+          onChange={(e) => setFormatFilter(e.target.value)}
+          style={s.filterSelect}
+        >
+          <option value="Both">Both</option>
+          <option value="PDF">PDF</option>
+          <option value="Physical">Physical</option>
+        </select>
+
         <label style={s.sortLabel} htmlFor="library-sort">Sort</label>
         <select
           id="library-sort"
@@ -147,8 +167,8 @@ export default function LibraryClient({ publishers, allSeries }) {
             <option key={sort.value} value={sort.value}>{sort.label}</option>
           ))}
         </select>
-        {(pubFilter || seriesFilter || releaseFilter) && (
-          <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setReleaseFilter(""); }}>
+        {(pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both") && (
+          <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setReleaseFilter(""); setFormatFilter("Both"); }}>
             Clear
           </button>
         )}
@@ -188,7 +208,7 @@ export default function LibraryClient({ publishers, allSeries }) {
             <p style={{ color: "var(--text-faint)", padding: 40, textAlign: "center" }}>Loading…</p>
           ) : displayed.length === 0 ? (
             <p style={{ color: "var(--text-soft)", padding: 40, textAlign: "center" }}>
-              {search ? "No comics match your search." : "No comics yet — use Scan to add one."}
+              {search || pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both" ? "No comics match your filters." : "No comics yet - use Add to add one."}
             </p>
           ) : (
             <div style={s.grid3}>
@@ -203,7 +223,7 @@ export default function LibraryClient({ publishers, allSeries }) {
                     {comic.read_count > 0 && (
                       <span style={s.readBadge}>{comic.read_count > 1 ? `×${comic.read_count}` : "✓"}</span>
                     )}
-                    {comic.has_pdf && <span style={s.pdfBadge}>PDF</span>}
+                    {hasDigitalPdf(comic) && <span style={s.pdfBadge}>PDF</span>}
                   </div>
 	                  <div style={s.info}>
 	                    <p style={s.series}>{comic.series?.name ?? ""}</p>
@@ -249,6 +269,10 @@ function sortComics(comics, sortBy) {
   }
 
   return sorted;
+}
+
+function hasDigitalPdf(comic) {
+  return Boolean(comic.has_pdf && comic.drive_file_id);
 }
 
 function getReleaseMonths(comics) {

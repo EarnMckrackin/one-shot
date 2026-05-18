@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 
-const MODES = ["Camera", "Upload Image", "Upload PDF"];
+const MODES = ["Search", "Camera", "Upload Image", "Upload PDF"];
 const MAJOR_PUBLISHERS = [
   "Marvel",
   "DC",
@@ -31,7 +31,7 @@ export default function ScanClient() {
   const replaceId    = searchParams.get("replace");
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [mode, setMode]         = useState("Camera");
+  const [mode, setMode]         = useState("Search");
   const [streaming, setStreaming] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [results, setResults]   = useState([]);
@@ -283,7 +283,7 @@ export default function ScanClient() {
   return (
     <div style={s.page}>
       {replaceId && <Link href={`/comic/${replaceId}`} style={{ color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 16 }}>← Back to comic</Link>}
-      <h1 style={s.title}>{replaceId ? "Re-identify Cover" : "Scan Cover"}</h1>
+      <h1 style={s.title}>{replaceId ? "Re-identify Cover" : "Add Comics"}</h1>
 
       <div style={s.modeBar}>
         {MODES.map((m) => (
@@ -300,6 +300,25 @@ export default function ScanClient() {
         onPublisherChoice={setPublisherChoice}
         onCustomPublisher={setCustomPublisher}
       />
+
+      {/* Search mode */}
+      {mode === "Search" && !results.length && (
+        <div style={s.searchSection}>
+          <form onSubmit={searchManually} style={s.searchForm}>
+            <input
+              className="ink-input"
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              placeholder="Search by title, series, issue, or publisher"
+              style={s.manualInput}
+            />
+            <InkButton type="submit" size="lg" disabled={searching || !manualQuery.trim()}>
+              {searching ? "Searching..." : "Search Comics"}
+            </InkButton>
+          </form>
+          <p style={s.hint}>Find comics you own and add the matching issue to your library.</p>
+        </div>
+      )}
 
       {/* Camera mode */}
       {mode === "Camera" && !results.length && (
@@ -386,8 +405,8 @@ export default function ScanClient() {
         </div>
       )}
 
-      {/* Manual search — shown after any scan or when results are empty */}
-      {(extracted || results.length > 0 || (!scanning && !searching && manualQuery)) && (
+      {/* Manual search — shown after scans or results for quick refinement */}
+      {(extracted || results.length > 0) && (
         <div style={s.manualSearch}>
           <p style={s.manualLabel}>Not finding it? Search by title and issue number:</p>
           <form onSubmit={searchManually} style={s.manualForm}>
@@ -399,7 +418,7 @@ export default function ScanClient() {
               style={s.manualInput}
             />
             <InkButton type="submit" size="md" disabled={searching || !manualQuery.trim()}>
-              {searching ? "…" : "Search"}
+              {searching ? "..." : "Search"}
             </InkButton>
           </form>
           <InkButton variant="ghost" size="sm" onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); }}>Start over</InkButton>

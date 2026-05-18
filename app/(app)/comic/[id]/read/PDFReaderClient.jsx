@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { getLocalPdf } from "../../../../../lib/local-pdf-store";
+import { Capacitor } from "@capacitor/core";
+import { FileViewer } from "@capacitor/file-viewer";
+import { ensureNativePdf, getLocalPdf } from "../../../../../lib/local-pdf-store";
 
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
@@ -17,6 +19,7 @@ export default function PDFReaderClient({ comic }) {
   const [sourceLabel, setSourceLabel] = useState("");
   const [layoutMode, setLayoutMode] = useState("single");
   const [viewerMode, setViewerMode] = useState("canvas");
+  const [openingNative, setOpeningNative] = useState(false);
 
   const title = useMemo(() => {
     return `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`;
@@ -72,6 +75,27 @@ export default function PDFReaderClient({ comic }) {
       if (localUrl) URL.revokeObjectURL(localUrl);
     };
   }, [comic.id, comic.drive_file_id]);
+
+  async function openNativePdf() {
+    setOpeningNative(true);
+    setError("");
+    try {
+      const native = await ensureNativePdf(comic.id);
+      if (Capacitor.getPlatform() !== "web" && native?.uri) {
+        await FileViewer.openDocumentFromLocalPath({ path: nativePath(native.uri) });
+        return;
+      }
+      if (pdfUrl) {
+        setViewerMode("native");
+        return;
+      }
+      throw new Error("No PDF file is available on this device.");
+    } catch (err) {
+      setError(err?.message || "Could not open the PDF with a native viewer.");
+    } finally {
+      setOpeningNative(false);
+    }
+  }
 
   useEffect(() => {
     if (!pdfBytes) return undefined;
@@ -166,6 +190,14 @@ export default function PDFReaderClient({ comic }) {
           >
             {viewerMode === "canvas" ? "Native View" : "Rendered View"}
           </button>
+          <button
+            type="button"
+            style={s.openBtn}
+            onClick={openNativePdf}
+            disabled={openingNative}
+          >
+            {openingNative ? "Opening..." : "Open in Viewer"}
+          </button>
         </div>
       </div>
 
@@ -173,7 +205,7 @@ export default function PDFReaderClient({ comic }) {
         <div style={s.notice}>
           <h2 style={s.noticeTitle}>Could not render the PDF</h2>
           <p style={s.noticeText}>{error}</p>
-          {pdfUrl && <button type="button" style={s.noticeButton} onClick={() => setViewerMode("native")}>Try Native View</button>}
+          <button type="button" style={s.noticeButton} onClick={openNativePdf}>Open in Viewer</button>
         </div>
       ) : viewerMode === "native" ? (
         <div style={s.nativeWrap}>
@@ -204,6 +236,10 @@ export default function PDFReaderClient({ comic }) {
       )}
     </div>
   );
+}
+
+function nativePath(uri) {
+  return String(uri || "").replace(/^file:\/\//, "");
 }
 
 function waitForCanvases(canvasRefs, pageCount) {
@@ -347,6 +383,20 @@ const s = {
   layoutBtnActive: {
     background: "var(--hero-cyan)",
     color: "var(--ink-000)",
+  },
+  openBtn: {
+    minHeight: 34,
+    padding: "0 12px",
+    border: "2px solid var(--ink-000)",
+    borderRadius: 8,
+    background: "var(--hero-gold)",
+    color: "var(--ink-000)",
+    boxShadow: "2px 2px 0 var(--ink-000)",
+    fontFamily: "var(--font-burst)",
+    fontSize: 12,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    cursor: "pointer",
   },
   download: {
     display: "inline-flex",

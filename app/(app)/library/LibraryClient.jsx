@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
-import { getLocalPriceForComic, localConnectionState, readLocalLibrary, writeLocalLibrary } from "../../../lib/local-data-store";
+import { localConnectionState, readLocalLibrary, writeLocalLibrary } from "../../../lib/local-data-store";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
 const SORTS = [
@@ -11,7 +11,6 @@ const SORTS = [
   { value: "release_desc", label: "Release Date" },
   { value: "publisher_asc", label: "Publisher" },
   { value: "series_asc", label: "Series" },
-  { value: "value_desc", label: "Value" },
 ];
 
 export default function LibraryClient({ publishers, allSeries }) {
@@ -54,12 +53,12 @@ export default function LibraryClient({ publishers, allSeries }) {
       }
       let q = supabase
         .from("comics")
-        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, estimated_value, release_date, created_at, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
         .order("created_at", { ascending: false });
 
       const { data, error } = await q;
       if (!error) {
-        const next = mergeLocalPrices((data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 })));
+        const next = (data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 }));
         setComics(next);
         writeLocalLibrary(next);
         setCacheInfo(new Date().toISOString());
@@ -214,9 +213,6 @@ export default function LibraryClient({ publishers, allSeries }) {
             Clear
           </button>
         )}
-        {sortBy === "value_desc" && (
-          <span style={s.sortHint}>Values appear after eBay estimates are enabled.</span>
-        )}
       </div>
 
       {view === "Publishers" && (
@@ -284,10 +280,6 @@ export default function LibraryClient({ publishers, allSeries }) {
 	                    <p style={s.series}>{comic.series?.name ?? ""}</p>
 	                    <p style={s.issueTitle}>{comic.issue_number ? `#${comic.issue_number}` : comic.title}</p>
 	                    <p style={s.cardMeta}>{[comic.publisher?.name, formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
-	                    {Number.isFinite(comic.estimated_value ?? comic.local_estimated_value) && (
-	                      <p style={s.value}>~${(comic.estimated_value ?? comic.local_estimated_value).toFixed(2)}</p>
-	                    )}
-	                    {comic.local_value_direction && <p style={s.valueTrend}>{comic.local_value_direction}</p>}
 	                  </div>
                 </Link>
               ))}
@@ -318,8 +310,6 @@ function sortComics(comics, sortBy) {
       compareIssue(a.issue_number, b.issue_number) ||
       text(a.publisher?.name).localeCompare(text(b.publisher?.name))
     );
-  } else if (sortBy === "value_desc") {
-    sorted.sort((a, b) => ((b.estimated_value ?? b.local_estimated_value) ?? -1) - ((a.estimated_value ?? a.local_estimated_value) ?? -1));
   } else {
     sorted.sort((a, b) => time(b.created_at) - time(a.created_at));
   }
@@ -341,22 +331,6 @@ function matchesSearch(comic, search) {
     comic.series?.name,
     comic.publisher?.name,
   ].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle));
-}
-
-function mergeLocalPrices(comics) {
-  return comics.map((comic) => {
-    const cached = getLocalPriceForComic(comic);
-    if (!cached) return comic;
-    const latest = Number(cached.latest);
-    const previous = Number(cached.previous);
-    return {
-      ...comic,
-      local_estimated_value: Number.isFinite(latest) ? latest : undefined,
-      local_value_direction: Number.isFinite(latest) && Number.isFinite(previous) && latest !== previous
-        ? latest > previous ? "up locally" : "down locally"
-        : null,
-    };
-  });
 }
 
 function formatCacheTime(value) {
@@ -448,6 +422,4 @@ const s = {
   series:          { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
   issueTitle:      { color: "var(--text)", fontSize: 13, fontWeight: 600 },
   cardMeta:        { color: "var(--text-faint)", fontSize: 10, marginTop: 3 },
-  value:           { color: "var(--hero-gold)", fontSize: 12, fontWeight: 700, marginTop: 4, fontFamily: "var(--font-mono)" },
-  valueTrend:      { color: "var(--text-faint)", fontSize: 10, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.05em" },
 };

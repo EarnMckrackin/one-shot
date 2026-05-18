@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
-import { readCachedReleases, upsertLocalLibraryComic, writeCachedReleases, writePriceCacheFromReleases } from "../../../lib/local-data-store";
+import { readCachedReleases, upsertLocalLibraryComic, writeCachedReleases } from "../../../lib/local-data-store";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -64,7 +64,6 @@ export default function ReleasesClient() {
       setReleases(releaseList);
       setSource(releaseSource ?? null);
       setWarning(releaseWarning ?? null);
-      writePriceCacheFromReleases(releaseList);
 
       // Build cv_id → series_db_id via name matching (works for LOCG + ComicVine)
       const map = {};
@@ -316,7 +315,7 @@ async function enrichRelease(release) {
 async function fetchLibraryComic(id) {
   const { data, error } = await supabase
     .from("comics")
-    .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, estimated_value, release_date, created_at, comicvine_id, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+    .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, comicvine_id, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
     .eq("id", id)
     .single();
   if (error) throw error;

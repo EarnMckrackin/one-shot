@@ -58,6 +58,10 @@ export default function LibraryClient({ publishers, allSeries }) {
     loadReleaseOptions();
   }, []);
 
+  useEffect(() => {
+    fetch("/api/comics/enrich-missing", { method: "POST" }).catch(() => {});
+  }, []);
+
   const formatFiltered = comics.filter((comic) => {
     if (formatFilter === "PDF") return hasDigitalPdf(comic);
     if (formatFilter === "Physical") return !hasDigitalPdf(comic);

@@ -146,7 +146,7 @@ export default function ReleasesClient() {
 
       let existingQuery = supabase
         .from("comics")
-        .select("id")
+        .select("id, description")
         .eq("user_id", user.id);
 
       existingQuery = seriesId
@@ -160,17 +160,28 @@ export default function ReleasesClient() {
       const { data: existing } = await existingQuery.maybeSingle();
 
       if (!existing) {
+        const details = await enrichRelease(release);
         const { error } = await supabase.from("comics").insert({
           user_id:      user.id,
           series_id:    seriesId,
           publisher_id: publisherId,
-          title:        release.title || series_name || "Untitled",
-          issue_number: release.issue_number ?? null,
-          comicvine_id: release.cv_id ?? release.metron_id ?? null,
-          cover_url,
-          release_date: release.store_date ?? release.cover_date ?? wednesday,
+          title:        details?.title || release.title || series_name || "Untitled",
+          issue_number: details?.issue_number ?? release.issue_number ?? null,
+          comicvine_id: details?.comicvine_id ?? release.cv_id ?? release.metron_id ?? null,
+          cover_url:    details?.cover_url || cover_url,
+          description:  details?.description ?? null,
+          release_date: details?.release_date ?? release.store_date ?? release.cover_date ?? wednesday,
+          writers:      details?.writers ?? null,
+          artists:      details?.artists ?? null,
+          characters:   details?.characters ?? null,
         });
         if (error) throw error;
+      } else if (!existing.description) {
+        await fetch("/api/comics/enrich", {
+          method:  "POST",
+          headers: { "content-type": "application/json" },
+          body:    JSON.stringify({ comicId: existing.id }),
+        });
       }
 
       setLibrarySet(prev => new Set([...prev, key]));
@@ -243,6 +254,21 @@ export default function ReleasesClient() {
       )}
     </div>
   );
+}
+
+async function enrichRelease(release) {
+  try {
+    const res = await fetch("/api/comics/enrich", {
+      method:  "POST",
+      headers: { "content-type": "application/json" },
+      body:    JSON.stringify({ issue: release }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.issue ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function ReleaseRow({ release, isPulled, isToggling, isAdding, isInLibrary, onToggle, onAdd }) {

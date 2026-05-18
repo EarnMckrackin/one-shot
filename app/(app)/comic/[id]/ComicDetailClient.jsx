@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabase-browser";
@@ -18,10 +18,62 @@ export default function ComicDetailClient({ comic: initial }) {
   const [fetchingCovers, setFetchingCovers] = useState(false);
   const [customCoverUrl, setCustomCoverUrl] = useState("");
   const [savingCover, setSavingCover] = useState(false);
+  const [priorIssues, setPriorIssues] = useState([]);
+  const [loadingPrior, setLoadingPrior] = useState(false);
+  const [priorError, setPriorError] = useState(null);
+  const [addingPrior, setAddingPrior] = useState(null);
 
   const readLog   = comic.reading_log ?? [];
   const readCount = readLog.length;
   const lastRead  = readLog.sort((a, b) => new Date(b.read_at) - new Date(a.read_at))[0]?.read_at;
+
+  useEffect(() => {
+    if (comic.description || !comic.issue_number) return;
+
+    let active = true;
+    fetch("/api/comics/enrich", {
+      method:  "POST",
+      headers: { "content-type": "application/json" },
+      body:    JSON.stringify({ comicId: comic.id }),
+    })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (active && data?.issue?.description) reload();
+      })
+      .catch(() => {});
+
+    return () => { active = false; };
+  }, [comic.description, comic.id, comic.issue_number]);
+
+  useEffect(() => {
+    if (!comic.series?.name || !comic.issue_number) return;
+
+    const params = new URLSearchParams({
+      series: comic.series.name,
+      seriesId: comic.series.id,
+      issue: comic.issue_number,
+    });
+    if (comic.publisher?.name) params.set("publisher", comic.publisher.name);
+
+    let active = true;
+    setLoadingPrior(true);
+    setPriorError(null);
+
+    fetch(`/api/series-history?${params}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load series history");
+        if (active) setPriorIssues(data.issues ?? []);
+      })
+      .catch((e) => {
+        if (active) setPriorError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoadingPrior(false);
+      });
+
+    return () => { active = false; };
+  }, [comic.id, comic.issue_number, comic.publisher?.name, comic.series?.id, comic.series?.name]);
 
   async function reload() {
     const { data } = await supabase
@@ -92,6 +144,88 @@ export default function ComicDetailClient({ comic: initial }) {
     if (!confirm("Remove this comic from your library?")) return;
     await supabase.from("comics").delete().eq("id", comic.id);
     router.push("/library");
+  }
+
+  async function addPriorIssue(issue) {
+    const key = priorIssueKey(issue);
+    setAddingPrior(key);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      let publisherId = comic.publisher?.id ?? null;
+      const publisherName = issue.publisher || comic.publisher?.name;
+      if (!publisherId && publisherName) {
+        const { data: pub } = await supabase
+          .from("publishers")
+          .upsert({ user_id: user.id, name: publisherName }, { onConflict: "user_id,name" })
+          .select("id")
+          .single();
+        publisherId = pub?.id;
+      }
+
+      let seriesId = comic.series?.id ?? null;
+      const seriesName = issue.series_name || comic.series?.name || issue.title;
+      if (!seriesId && seriesName) {
+        const { data: ser } = await supabase
+          .from("series")
+          .upsert({
+            user_id:      user.id,
+            publisher_id: publisherId,
+            name:         seriesName,
+            cover_url:    issue.cover_url,
+          }, { onConflict: "user_id,name" })
+          .select("id")
+          .single();
+        seriesId = ser?.id;
+      }
+
+      let existingQuery = supabase
+        .from("comics")
+        .select("id")
+        .eq("user_id", user.id);
+
+      existingQuery = seriesId
+        ? existingQuery.eq("series_id", seriesId)
+        : existingQuery.eq("title", issue.title || seriesName || "Untitled");
+
+      existingQuery = issue.issue_number
+        ? existingQuery.eq("issue_number", issue.issue_number)
+        : existingQuery.is("issue_number", null);
+
+      const { data: existing } = await existingQuery.maybeSingle();
+      let libraryId = existing?.id;
+
+      if (!existing) {
+        const { data: inserted, error } = await supabase
+          .from("comics")
+          .insert({
+            user_id:      user.id,
+            series_id:    seriesId,
+            publisher_id: publisherId,
+            title:        issue.title || seriesName || "Untitled",
+            issue_number: issue.issue_number ?? null,
+            comicvine_id: issue.comicvine_id ?? issue.metron_id ?? null,
+            cover_url:    issue.cover_url,
+            description:  issue.description,
+            release_date: issue.release_date,
+            writers:      issue.writers,
+            artists:      issue.artists,
+            characters:   issue.characters,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        libraryId = inserted?.id;
+      }
+
+      setPriorIssues((items) => items.map((item) =>
+        priorIssueKey(item) === key ? { ...item, is_owned: true, library_id: libraryId } : item
+      ));
+    } catch (e) {
+      alert("Could not add issue to library: " + e.message);
+    } finally {
+      setAddingPrior(null);
+    }
   }
 
   return (
@@ -215,6 +349,42 @@ export default function ComicDetailClient({ comic: initial }) {
         </div>
       )}
 
+      <div style={s.section}>
+        <div style={s.sectionHeaderRow}>
+          <h2 style={s.sectionTitle}>Earlier In This Series</h2>
+          {priorIssues.length > 0 && <span style={s.sectionCount}>{priorIssues.length} found</span>}
+        </div>
+
+        {loadingPrior && <p style={s.priorHint}>Loading earlier issues...</p>}
+        {!loadingPrior && priorError && <p style={{ ...s.priorHint, color: "var(--accent)" }}>{priorError}</p>}
+        {!loadingPrior && !priorError && priorIssues.length === 0 && (
+          <p style={s.priorHint}>No earlier issues found for this series yet.</p>
+        )}
+        {!loadingPrior && !priorError && priorIssues.length > 0 && (
+          <div style={s.priorList}>
+            {priorIssues.map((issue) => (
+              <div key={priorIssueKey(issue)} style={s.priorRow}>
+                {issue.cover_url
+                  ? <img src={issue.cover_url} alt={issue.title} style={s.priorCover} loading="lazy" />
+                  : <div style={{ ...s.priorCover, ...s.priorCoverBlank }} />
+                }
+                <div style={s.priorMeta}>
+                  <p style={s.priorTitle}>{issue.series_name || comic.series?.name} {issue.issue_number ? `#${issue.issue_number}` : ""}</p>
+                  <p style={s.priorSub}>{[issue.publisher, formatDate(issue.release_date), issue.source].filter(Boolean).join(" · ")}</p>
+                </div>
+                {issue.is_owned ? (
+                  <InkButton href={`/comic/${issue.library_id}`} variant="ghost" size="sm">In Library</InkButton>
+                ) : (
+                  <InkButton onClick={() => addPriorIssue(issue)} disabled={addingPrior === priorIssueKey(issue)} size="sm">
+                    {addingPrior === priorIssueKey(issue) ? "Adding..." : "Bought"}
+                  </InkButton>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {readLog.length > 0 && (
         <div style={s.section}>
           <h2 style={s.sectionTitle}>Reading History</h2>
@@ -230,6 +400,15 @@ export default function ComicDetailClient({ comic: initial }) {
       <InkButton variant="ghost" size="sm" onClick={handleDelete}>Remove from Library</InkButton>
     </div>
   );
+}
+
+function priorIssueKey(issue) {
+  return `${issue.source ?? ""}|${issue.comicvine_id ?? issue.metron_id ?? ""}|${issue.series_name ?? ""}|${issue.issue_number ?? ""}`;
+}
+
+function formatDate(date) {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 }
 
 const s = {
@@ -253,7 +432,9 @@ const s = {
   inlineForm:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "3px 3px 0 var(--ink-000)" },
   formLabel:     { color: "var(--text-soft)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 600 },
   section:       { marginBottom: 28 },
+  sectionHeaderRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   sectionTitle:  { color: "var(--text)", fontSize: 20, fontWeight: 700, marginBottom: 10, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.04em" },
+  sectionCount:  { color: "var(--text-faint)", fontSize: 12, fontFamily: "var(--font-mono)" },
   description:   { color: "var(--text-soft)", fontSize: 14, lineHeight: 1.7 },
   credit:        { color: "var(--text-soft)", fontSize: 14, marginBottom: 6, display: "flex", gap: 12 },
   creditKey:     { color: "var(--text-faint)", width: 84, flexShrink: 0, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", paddingTop: 2 },
@@ -261,6 +442,15 @@ const s = {
   logDate:       { color: "var(--text-soft)", fontSize: 13, flexShrink: 0 },
   logNotes:      { color: "var(--text-faint)", fontSize: 13 },
   changeCoverBtn: { width: "100%", marginTop: 10 },
+
+  priorHint:     { color: "var(--text-faint)", fontSize: 13, padding: "12px 0" },
+  priorList:     { display: "flex", flexDirection: "column", gap: 10 },
+  priorRow:      { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 10, boxShadow: "2px 2px 0 var(--ink-000)" },
+  priorCover:    { width: 48, height: 72, objectFit: "cover", borderRadius: 6, flexShrink: 0, background: "var(--bg-surface)" },
+  priorCoverBlank: { border: "1px solid var(--border)" },
+  priorMeta:     { flex: 1, minWidth: 0 },
+  priorTitle:    { color: "var(--text)", fontSize: 14, fontWeight: 700 },
+  priorSub:      { color: "var(--text-faint)", fontSize: 12, marginTop: 3 },
 
   pickerPanel:   { background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 14, padding: 20, marginBottom: 28, boxShadow: "3px 3px 0 var(--ink-000)" },
   pickerHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },

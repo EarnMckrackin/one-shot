@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
@@ -14,6 +15,7 @@ const SORTS = [
 ];
 
 export default function LibraryClient({ publishers, allSeries }) {
+  const searchParams = useSearchParams();
   const [view, setView]         = useState("All");
   const [search, setSearch]     = useState("");
   const [comics, setComics]     = useState([]);
@@ -24,6 +26,18 @@ export default function LibraryClient({ publishers, allSeries }) {
   const [releaseFilter, setReleaseFilter] = useState("");
   const [formatFilter, setFormatFilter] = useState("Both");
   const [sortBy, setSortBy]     = useState("created_desc");
+
+  useEffect(() => {
+    const publisher = searchParams.get("publisher") || "";
+    const series = searchParams.get("series") || "";
+    if (publisher) setPubFilter(publisher);
+    if (series) {
+      const match = allSeries.find((item) => String(item.id) === series);
+      setPubFilter(match?.publisher_id ? String(match.publisher_id) : "");
+      setSeriesFilter(series);
+      setView("All");
+    }
+  }, [allSeries, searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -81,7 +95,7 @@ export default function LibraryClient({ publishers, allSeries }) {
   );
 
   const filteredSeries = pubFilter
-    ? allSeries.filter((s) => s.publisher_id === pubFilter)
+    ? allSeries.filter((s) => String(s.publisher_id) === String(pubFilter))
     : allSeries;
 
   return (
@@ -121,7 +135,7 @@ export default function LibraryClient({ publishers, allSeries }) {
         >
           <option value="">All publishers</option>
           {publishers.map((publisher) => (
-            <option key={publisher.id} value={publisher.id}>{publisher.name}</option>
+            <option key={publisher.id} value={String(publisher.id)}>{publisher.name}</option>
           ))}
         </select>
 
@@ -135,7 +149,7 @@ export default function LibraryClient({ publishers, allSeries }) {
         >
           <option value="">All series</option>
           {filteredSeries.map((series) => (
-            <option key={series.id} value={series.id}>{series.name}</option>
+            <option key={series.id} value={String(series.id)}>{series.name}</option>
           ))}
         </select>
 
@@ -193,8 +207,13 @@ export default function LibraryClient({ publishers, allSeries }) {
           {publishers.map((p) => (
             <button
               key={p.id}
-              style={{ ...s.pubCard, ...(pubFilter === p.id ? s.pubCardActive : {}) }}
-              onClick={() => { setPubFilter(pubFilter === p.id ? "" : p.id); setView("All"); }}
+              style={{ ...s.pubCard, ...(String(pubFilter) === String(p.id) ? s.pubCardActive : {}) }}
+              onClick={() => {
+                const next = String(pubFilter) === String(p.id) ? "" : String(p.id);
+                setPubFilter(next);
+                setSeriesFilter("");
+                setView("All");
+              }}
             >
               <span style={s.pubName}>{p.name}</span>
               <span style={s.pubCount}>{p.issue_count ?? ""}</span>
@@ -206,9 +225,16 @@ export default function LibraryClient({ publishers, allSeries }) {
       {view === "Series" && (
         <div style={s.grid2}>
           {filteredSeries.map((ser) => (
-            <Link key={ser.id} href={`/series/${ser.id}`} style={s.pubCard}>
+            <button
+              key={ser.id}
+              style={{ ...s.pubCard, ...(String(seriesFilter) === String(ser.id) ? s.pubCardActive : {}) }}
+              onClick={() => {
+                setSeriesFilter(String(seriesFilter) === String(ser.id) ? "" : String(ser.id));
+                setView("All");
+              }}
+            >
               <span style={s.pubName}>{ser.name}</span>
-            </Link>
+            </button>
           ))}
         </div>
       )}
@@ -365,7 +391,7 @@ const s = {
   grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 },
   grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 },
 
-  pubCard:         { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left" },
+  pubCard:         { width: "100%", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left", font: "inherit" },
   pubCardActive:   { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent)" },
   pubName:         { fontWeight: 600, fontSize: 15, color: "var(--text)" },
   pubCount:        { display: "block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" },

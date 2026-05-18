@@ -22,6 +22,8 @@ export default function ComicDetailClient({ comic: initial }) {
   const [loadingPrior, setLoadingPrior] = useState(false);
   const [priorError, setPriorError] = useState(null);
   const [addingPrior, setAddingPrior] = useState(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
 
   const readLog   = comic.reading_log ?? [];
   const readCount = readLog.length;
@@ -146,6 +148,42 @@ export default function ComicDetailClient({ comic: initial }) {
     router.push("/library");
   }
 
+  async function attachPdf(file) {
+    if (!file) return;
+    setUploadingPdf(true);
+    setPdfError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("comicId", comic.id);
+
+      const res = await fetch("/api/google/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 403) {
+        router.push("/api/google/auth");
+        return;
+      }
+
+      if (!res.ok) throw new Error(data.error || "Could not upload PDF.");
+
+      setComic((current) => ({
+        ...current,
+        has_pdf: true,
+        drive_file_id: data.drive_file_id,
+        drive_view_url: data.drive_view_url,
+      }));
+    } catch (e) {
+      setPdfError(e.message);
+    } finally {
+      setUploadingPdf(false);
+    }
+  }
+
   async function addPriorIssue(issue) {
     const key = priorIssueKey(issue);
     setAddingPrior(key);
@@ -238,11 +276,12 @@ export default function ComicDetailClient({ comic: initial }) {
             ? <img src={comic.cover_url} alt={comic.title} style={s.cover} />
             : <div style={{ ...s.cover, ...s.coverPlaceholder }}>No cover</div>
           }
+          {comic.has_pdf && comic.drive_file_id && <span style={s.pdfBadge}>PDF</span>}
           <InkButton variant="ghost" size="sm" onClick={openCoverPicker} style={s.changeCoverBtn}>Change Cover</InkButton>
         </div>
 
         <div style={s.meta}>
-          {comic.series && <Link href={`/series/${comic.series.id}`} style={s.seriesLink}>{comic.series.name}</Link>}
+          {comic.series && <Link href={`/library?series=${comic.series.id}`} style={s.seriesLink}>{comic.series.name}</Link>}
           <h1 style={s.title}>{comic.title}{comic.issue_number ? ` #${comic.issue_number}` : ""}</h1>
           {comic.publisher && <p style={s.publisher}>{comic.publisher.name}</p>}
           {comic.release_date && <p style={s.date}>{comic.release_date.slice(0, 7)}</p>}
@@ -264,11 +303,22 @@ export default function ComicDetailClient({ comic: initial }) {
             {comic.has_pdf && comic.drive_file_id && (
               <InkButton href={`/comic/${comic.id}/read`} variant="gold">Read PDF</InkButton>
             )}
+            <label className={`ink-btn ink-btn--md ink-btn--ghost ${uploadingPdf ? "is-disabled" : ""}`} style={uploadingPdf ? s.disabledLabel : undefined}>
+              {comic.has_pdf && comic.drive_file_id ? "Replace PDF" : "Add PDF"}
+              <input
+                type="file"
+                accept="application/pdf"
+                disabled={uploadingPdf}
+                onChange={(e) => attachPdf(e.target.files?.[0])}
+                style={{ display: "none" }}
+              />
+            </label>
             {comic.has_pdf && !comic.drive_file_id && (
               <span style={s.pdfMissing}>PDF upload did not finish</span>
             )}
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>
+          {pdfError && <p style={s.pdfError}>{pdfError}</p>}
 
           {logOpen && (
             <div style={s.inlineForm}>
@@ -415,7 +465,7 @@ const s = {
   page:          { maxWidth: 800 },
   back:          { color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 22 },
   hero:          { display: "flex", gap: 28, marginBottom: 32, flexWrap: "wrap" },
-  coverWrap:     { flexShrink: 0, width: 180 },
+  coverWrap:     { flexShrink: 0, width: 180, position: "relative" },
   cover:         { width: "100%", aspectRatio: "2/3", objectFit: "cover", borderRadius: 12, display: "block", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   coverPlaceholder: { background: "var(--bg-card)", color: "var(--text-faint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, borderRadius: 12 },
   meta:          { flex: 1, minWidth: 240 },
@@ -429,6 +479,9 @@ const s = {
   statLabel:     { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, fontFamily: "var(--font-display)" },
   actions:       { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 },
   pdfMissing:    { display: "inline-flex", alignItems: "center", minHeight: 38, color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },
+  pdfError:      { color: "var(--accent)", fontSize: 12, fontWeight: 700, marginTop: -6, marginBottom: 12 },
+  pdfBadge:      { position: "absolute", right: 8, bottom: 48, background: "var(--hero-gold)", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 6px", borderRadius: 6, border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", letterSpacing: 0.5 },
+  disabledLabel: { opacity: 0.5, pointerEvents: "none" },
   inlineForm:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "3px 3px 0 var(--ink-000)" },
   formLabel:     { color: "var(--text-soft)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 600 },
   section:       { marginBottom: 28 },

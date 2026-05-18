@@ -4,16 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
+import { Document, Page, pdfjs } from "react-pdf";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
 
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
+
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
-  const canvasRef = useRef(null);
-  const renderRunRef = useRef(0);
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [renderedPage, setRenderedPage] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(360);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
@@ -50,7 +54,6 @@ export default function PDFReaderClient({ comic }) {
       setPdfUrl("");
       setSourceLabel("");
       setPageCount(0);
-      setRenderedPage(0);
 
       const local = await getLocalPdf(comic.id).catch(() => null);
       if (!active) return;
@@ -102,67 +105,13 @@ export default function PDFReaderClient({ comic }) {
   }, [comic.id, comic.drive_file_id, title]);
 
   useEffect(() => {
-    if (!pdfBytes) return undefined;
-    let cancelled = false;
-    const renderRun = renderRunRef.current + 1;
-    renderRunRef.current = renderRun;
-
-    async function renderPdfPage() {
-      setError("");
-      setRenderedPage(0);
-
-      try {
-        installPdfJsPolyfills();
-        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/legacy/build/pdf.worker.mjs",
-          import.meta.url
-        ).toString();
-
-        const pdf = await pdfjs.getDocument({
-          data: pdfBytes.slice(),
-          disableWorker: true,
-          isEvalSupported: false,
-          useSystemFonts: true,
-        }).promise;
-        if (cancelled || renderRunRef.current !== renderRun) return;
-
-        setPageCount(pdf.numPages);
-        const pageNumber = Math.max(1, Math.min(currentPage, pdf.numPages));
-        if (pageNumber !== currentPage) {
-          setCurrentPage(pageNumber);
-          return;
-        }
-
-        await waitForCanvas(canvasRef);
-        if (cancelled || renderRunRef.current !== renderRun) return;
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const page = await pdf.getPage(pageNumber);
-        const baseViewport = page.getViewport({ scale: 1 });
-        const availableWidth = Math.min(containerRef.current?.clientWidth || 360, 960);
-        const scale = (availableWidth / baseViewport.width) * zoom;
-        const viewport = page.getViewport({ scale });
-        const deviceScale = Math.min(window.devicePixelRatio || 1, Capacitor.getPlatform() === "web" ? 1.75 : 1.5);
-
-        await renderPageToCanvas(page, canvas, viewport, deviceScale);
-        if (isCanvasBlank(canvas)) {
-          await renderPageToCanvas(page, canvas, viewport, 1);
-        }
-        if (!cancelled) setRenderedPage(pageNumber);
-      } catch (err) {
-        if (!cancelled) setError(err?.message || "Unable to render this PDF.");
-      }
+    function updateWidth() {
+      setContainerWidth(Math.min(containerRef.current?.clientWidth || 360, 960));
     }
-
-    renderPdfPage();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfBytes, currentPage, zoom]);
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
 
   async function openNativePdf() {
     setOpeningNative(true);
@@ -236,10 +185,30 @@ export default function PDFReaderClient({ comic }) {
       ) : (
         <>
           <p style={s.progress}>
-            {pageCount ? `Page ${currentPage} of ${pageCount}${renderedPage === currentPage ? "" : " loading..."}` : "Loading PDF..."}
+            {pageCount ? `Page ${currentPage} of ${pageCount}` : "Loading PDF..."}
           </p>
           <div ref={containerRef} style={s.reader}>
-            <canvas ref={canvasRef} style={s.canvas} />
+            {pdfBytes && (
+              <Document
+                file={{ data: pdfBytes }}
+                onLoadSuccess={({ numPages }) => {
+                  setPageCount(numPages);
+                  setCurrentPage((page) => Math.max(1, Math.min(page, numPages)));
+                  setError("");
+                }}
+                onLoadError={(err) => setError(err?.message || "Unable to load this PDF document.")}
+                loading={<p style={s.noticeText}>Loading PDF document...</p>}
+              >
+                <Page
+                  pageNumber={currentPage}
+                  width={Math.floor(containerWidth * zoom)}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                  onRenderError={(err) => setError(err?.message || "Unable to render this PDF page.")}
+                  loading={<p style={s.noticeText}>Rendering page...</p>}
+                />
+              </Document>
+            )}
           </div>
         </>
       )}
@@ -251,88 +220,16 @@ function nativePath(uri) {
   return String(uri || "").replace(/^file:\/\//, "");
 }
 
-function waitForCanvas(canvasRef) {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    function check() {
-      attempts += 1;
-      if (canvasRef.current || attempts > 30) {
-        resolve();
-        return;
-      }
-      requestAnimationFrame(check);
-    }
-    requestAnimationFrame(check);
-  });
-}
-
-function installPdfJsPolyfills() {
-  if (typeof Promise.withResolvers !== "function") {
-    Promise.withResolvers = function withResolvers() {
-      let resolve;
-      let reject;
-      const promise = new Promise((res, rej) => {
-        resolve = res;
-        reject = rej;
-      });
-      return { promise, resolve, reject };
-    };
-  }
-}
-
-async function renderPageToCanvas(page, canvas, viewport, deviceScale) {
-  canvas.width = 1;
-  canvas.height = 1;
-  canvas.width = Math.max(1, Math.floor(viewport.width * deviceScale));
-  canvas.height = Math.max(1, Math.floor(viewport.height * deviceScale));
-  canvas.style.width = `${Math.floor(viewport.width)}px`;
-  canvas.style.height = `${Math.floor(viewport.height)}px`;
-
-  const context = canvas.getContext("2d", { alpha: false });
-  context.save();
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.restore();
-  context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
-
-  await page.render({
-    canvasContext: context,
-    viewport,
-    background: "white",
-  }).promise;
-}
-
-function isCanvasBlank(canvas) {
-  try {
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    const width = canvas.width;
-    const height = canvas.height;
-    if (!width || !height) return true;
-
-    const sampleSize = 8;
-    const points = [
-      [0.5, 0.5],
-      [0.2, 0.2],
-      [0.8, 0.2],
-      [0.2, 0.8],
-      [0.8, 0.8],
-      [0.5, 0.15],
-      [0.5, 0.85],
-    ];
-
-    return points.every(([xPct, yPct]) => {
-      const x = Math.max(0, Math.min(width - sampleSize, Math.floor(width * xPct)));
-      const y = Math.max(0, Math.min(height - sampleSize, Math.floor(height * yPct)));
-      const { data } = context.getImageData(x, y, sampleSize, sampleSize);
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return false;
-      }
-      return true;
+if (typeof Promise.withResolvers !== "function") {
+  Promise.withResolvers = function withResolvers() {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
     });
-  } catch {
-    return false;
-  }
+    return { promise, resolve, reject };
+  };
 }
 
 const s = {

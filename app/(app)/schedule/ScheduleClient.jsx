@@ -105,9 +105,9 @@ export default function ScheduleClient() {
           style={generating ? s.aiBtnBusy : undefined}
           onClick={generateSchedule}
           disabled={generating}
-          title="Let Claude plan your week based on your library and reading time"
+          title="Plan your week from unread comics in your library"
         >
-          {generating ? "Generating…" : "✦ Plan with AI"}
+          {generating ? "Planning..." : "Plan Week"}
         </InkButton>
       </div>
 
@@ -143,7 +143,7 @@ export default function ScheduleClient() {
       {error   && <p style={{ ...s.empty, color: "var(--accent)" }}>Error: {error}</p>}
 
       {!loading && !error && activeItems.length === 0 ? (
-        <p style={s.empty}>Nothing scheduled — hit "Plan with AI" to generate a week, or open a comic and add it manually.</p>
+        <p style={s.empty}>Nothing scheduled - generate a local plan, or open a comic and add it manually.</p>
       ) : !loading && !error && (
         <div style={s.list}>
           {activeItems.map((item) => (

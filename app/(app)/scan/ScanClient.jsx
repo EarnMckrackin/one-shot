@@ -1,11 +1,13 @@
 "use client";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
+import { CapacitorPluginMlKitTextRecognition } from "@pantrist/capacitor-plugin-ml-kit-text-recognition";
 
 const MODES = ["Search", "Camera", "Upload Image", "Upload PDF"];
+const LOCAL_ADD_STATE_KEY = "oneshot:add-state:v1";
 const MAJOR_PUBLISHERS = [
   "Marvel",
   "DC",
@@ -43,6 +45,20 @@ export default function ScanClient() {
   const [searching, setSearching]     = useState(false);
   const [publisherChoice, setPublisherChoice] = useState("");
   const [customPublisher, setCustomPublisher] = useState("");
+  const [localCover, setLocalCover] = useState(null);
+  const [ocrText, setOcrText] = useState("");
+  const [ocrStatus, setOcrStatus] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LOCAL_ADD_STATE_KEY) || "{}");
+      if (saved.query) setManualQuery(saved.query);
+      if (saved.publisherChoice) setPublisherChoice(saved.publisherChoice);
+      if (saved.customPublisher) setCustomPublisher(saved.customPublisher);
+      if (saved.coverDataUrl) setLocalCover(saved.coverDataUrl);
+      if (saved.ocrText) setOcrText(saved.ocrText);
+    } catch {}
+  }, []);
 
   function selectedPublisher() {
     return publisherChoice === "Other" ? customPublisher.trim() : publisherChoice;
@@ -88,27 +104,48 @@ export default function ScanClient() {
     canvas.width  = Math.round(video.videoWidth  * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    return canvas.toDataURL("image/jpeg", 0.78);
   }
 
-  async function scanImage(base64) {
-    setScanning(true);
-    setResults([]);
+  function saveLocalAddState(next = {}) {
     try {
-      const res  = await fetch("/api/scan", {
-        method:  "POST",
-        headers: { "content-type": "application/json" },
-        body:    JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg", publisher: selectedPublisher() || undefined }),
+      localStorage.setItem(LOCAL_ADD_STATE_KEY, JSON.stringify({
+        query: manualQuery,
+        publisherChoice,
+        customPublisher,
+        coverDataUrl: localCover,
+        ocrText,
+        savedAt: new Date().toISOString(),
+        ...next,
+      }));
+    } catch {}
+  }
+
+  async function saveLocalCover(dataUrl) {
+    setLocalCover(dataUrl);
+    saveLocalAddState({ coverDataUrl: dataUrl });
+    setResults([]);
+    setExtracted(null);
+    setMode("Search");
+    await runOcr(dataUrl);
+  }
+
+  async function runOcr(dataUrl) {
+    setScanning(true);
+    setOcrStatus("Reading cover text on device...");
+    try {
+      const result = await CapacitorPluginMlKitTextRecognition.detectText({
+        base64Image: dataUrl.split(",")[1] || dataUrl,
+        rotation: 0,
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setExtracted(data.extracted);
-      setResults(data.results ?? []);
-      syncPublisher(data.extracted?.publisher);
-      const q = [data.extracted?.series, data.extracted?.issue && `#${data.extracted.issue}`].filter(Boolean).join(" ");
-      setManualQuery(q);
-    } catch (e) {
-      alert("Scan failed: " + e.message);
+      const cleaned = cleanOcrText(result.text);
+      const query = buildQueryFromOcr(cleaned);
+      setOcrText(cleaned);
+      saveLocalAddState({ ocrText: cleaned, query });
+      if (query && !manualQuery.trim()) setManualQuery(query);
+      setOcrStatus(cleaned ? "Text found. Review the search before running it." : "No readable cover text found. Try manual search.");
+    } catch {
+      setOcrStatus("OCR runs in the Android/iOS app. Use manual search in this browser.");
     } finally {
       setScanning(false);
     }
@@ -127,6 +164,7 @@ export default function ScanClient() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      saveLocalAddState({ query: manualQuery.trim() });
       setResults(data.results ?? []);
     } catch (e) {
       alert("Search failed: " + e.message);
@@ -136,9 +174,9 @@ export default function ScanClient() {
   }
 
   async function handleCaptureClick() {
-    const b64 = await captureFrame();
+    const dataUrl = await captureFrame();
     stopCamera();
-    await scanImage(b64);
+    await saveLocalCover(dataUrl);
   }
 
   async function handleImageUpload(e) {
@@ -146,8 +184,7 @@ export default function ScanClient() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const b64 = ev.target.result.split(",")[1];
-      await scanImage(b64);
+      await saveLocalCover(ev.target.result);
     };
     reader.readAsDataURL(file);
   }
@@ -211,6 +248,7 @@ export default function ScanClient() {
       }).select("id").single();
 
       if (error) throw error;
+      saveLocalAddState({ query: "", coverDataUrl: null, ocrText: "" });
       router.push(`/comic/${comic.id}`);
     } catch (e) {
       alert("Error adding comic: " + e.message);
@@ -301,6 +339,41 @@ export default function ScanClient() {
         onCustomPublisher={setCustomPublisher}
       />
 
+      {localCover && (
+        <div style={s.localCoverBox}>
+          <img src={localCover} alt="Saved cover reference" style={s.localCoverImg} />
+          <div style={s.localCoverMeta}>
+            <p style={s.localCoverTitle}>Cover saved on this device</p>
+            <p style={s.hint}>{ocrStatus || "OCR will try to extract title and issue text on Android/iOS."}</p>
+          </div>
+          <button style={s.clearLocalBtn} onClick={() => { setLocalCover(null); setOcrText(""); setOcrStatus(""); saveLocalAddState({ coverDataUrl: null, ocrText: "" }); }}>Clear</button>
+        </div>
+      )}
+
+      {ocrText && (
+        <div style={s.ocrBox}>
+          <p style={s.manualLabel}>Cover text</p>
+          <textarea
+            className="ink-input"
+            value={ocrText}
+            onChange={(e) => { setOcrText(e.target.value); saveLocalAddState({ ocrText: e.target.value }); }}
+            rows={4}
+            style={s.ocrText}
+          />
+          <InkButton
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const query = buildQueryFromOcr(ocrText);
+              setManualQuery(query);
+              saveLocalAddState({ query });
+            }}
+          >
+            Use for Search
+          </InkButton>
+        </div>
+      )}
+
       {/* Search mode */}
       {mode === "Search" && !results.length && (
         <div style={s.searchSection}>
@@ -333,10 +406,10 @@ export default function ScanClient() {
             <InkButton size="lg" onClick={startCamera}>Start Camera</InkButton>
           ) : (
             <InkButton size="lg" onClick={handleCaptureClick} disabled={scanning}>
-              {scanning ? "Scanning…" : "Capture & Identify"}
+              {scanning ? "Saving..." : "Capture Cover"}
             </InkButton>
           )}
-          <p style={s.hint}>Point the camera at a comic cover and tap Capture</p>
+          <p style={s.hint}>Point the camera at a comic cover. OCR runs on device, then searches Comic Vine and Metron.</p>
         </div>
       )}
 
@@ -345,9 +418,9 @@ export default function ScanClient() {
         <div style={s.uploadSection}>
           <label style={s.uploadLabel}>
             <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
-            <InkButton as="span" size="lg">{scanning ? "Scanning…" : "Choose Image"}</InkButton>
+            <InkButton as="span" size="lg">Choose Image</InkButton>
           </label>
-          <p style={s.hint}>Upload a photo of a comic cover to identify it</p>
+          <p style={s.hint}>Run on-device OCR from a cover image, then search by series and issue.</p>
         </div>
       )}
 
@@ -370,13 +443,13 @@ export default function ScanClient() {
 
       {/* Scanning spinner */}
       {scanning && (
-        <p style={{ color: "var(--text-soft)", textAlign: "center", padding: 32 }}>Identifying cover with AI…</p>
+        <p style={{ color: "var(--text-soft)", textAlign: "center", padding: 32 }}>{ocrStatus || "Reading cover text..."}</p>
       )}
 
       {/* Extracted info */}
       {extracted && !scanning && (
         <div style={s.extracted}>
-          <span style={s.extractedLabel}>Detected: </span>
+          <span style={s.extractedLabel}>Local: </span>
           <span style={s.extractedValue}>
             {[extracted.series, extracted.issue && `#${extracted.issue}`, extracted.publisher].filter(Boolean).join("  ·  ")}
           </span>
@@ -405,8 +478,8 @@ export default function ScanClient() {
         </div>
       )}
 
-      {/* Manual search — shown after scans or results for quick refinement */}
-      {(extracted || results.length > 0) && (
+      {/* Manual search — shown after saved covers or results for quick refinement */}
+      {results.length > 0 && (
         <div style={s.manualSearch}>
           <p style={s.manualLabel}>Not finding it? Search by title and issue number:</p>
           <form onSubmit={searchManually} style={s.manualForm}>
@@ -457,6 +530,31 @@ function PublisherPicker({ publisherChoice, customPublisher, onPublisherChoice, 
   );
 }
 
+function cleanOcrText(text) {
+  return String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^\$?\d+(\.\d{2})?$/.test(line))
+    .slice(0, 12)
+    .join("\n");
+}
+
+function buildQueryFromOcr(text) {
+  const lines = String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const issueLine = lines.find((line) => /#\s*\d+/i.test(line) || /\b(issue|no\.?)\s*#?\s*\d+/i.test(line));
+  const issue = issueLine?.match(/#\s*([0-9]+[a-z]?)/i)?.[1]
+    ?? issueLine?.match(/\b(?:issue|no\.?)\s*#?\s*([0-9]+[a-z]?)/i)?.[1];
+  const title = lines
+    .filter((line) => line.length > 2)
+    .filter((line) => !/\b(marvel|dc|image|dark horse|idw|boom|dynamite|valiant|variant|cover|rated|legacy|barcode)\b/i.test(line))
+    .sort((a, b) => b.length - a.length)[0] ?? lines[0] ?? "";
+  return [title, issue && `#${issue}`].filter(Boolean).join(" ").trim();
+}
+
 const s = {
   page:          { maxWidth: 600, margin: "0 auto" },
   title:         { fontSize: 32, fontFamily: "var(--font-serif)", fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" },
@@ -467,6 +565,13 @@ const s = {
   publisherLabel:{ color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
   publisherSelect: { minHeight: 42 },
   publisherCustom: { gridColumn: "2 / 3" },
+  localCoverBox: { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 10, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
+  localCoverImg: { width: 54, height: 80, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
+  localCoverMeta: { flex: 1, minWidth: 0 },
+  localCoverTitle: { color: "var(--text)", fontSize: 13, fontWeight: 700, marginBottom: 3 },
+  clearLocalBtn: { background: "transparent", border: "1.5px solid var(--ink-000)", borderRadius: 8, color: "var(--text-faint)", cursor: "pointer", padding: "6px 10px", fontSize: 12 },
+  ocrBox:        { background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 14, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
+  ocrText:       { width: "100%", resize: "vertical", marginBottom: 10, fontFamily: "var(--font-mono)", fontSize: 12 },
   cameraSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
   viewfinder:    { width: "100%", maxWidth: 320, aspectRatio: "2/3", background: "var(--bg-surface)", borderRadius: 12, overflow: "hidden", position: "relative", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   video:         { width: "100%", height: "100%", objectFit: "cover" },

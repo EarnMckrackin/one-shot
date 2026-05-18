@@ -40,7 +40,7 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
 
       <section style={s.section}>
         <h2 style={s.sectionTitle}>Reading</h2>
-        <p style={s.detail}>Set your daily reading budget. The AI scheduler uses this to plan your week.</p>
+        <p style={s.detail}>Set your daily reading budget. The local scheduler uses this to plan your week.</p>
         <div style={s.sliderRow}>
           <input
             type="range"
@@ -79,7 +79,7 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
       <section style={s.section}>
         <h2 style={s.sectionTitle}>About</h2>
         <p style={s.detail}>One Shot — your comic collection, pull list, and reading schedule.</p>
-        <p style={s.detail}>Cover scanning powered by Claude AI · Metadata from ComicVine · New releases from League of Comic Geeks</p>
+        <p style={s.detail}>Metadata from ComicVine and Metron · New releases from League of Comic Geeks and provider fallbacks</p>
       </section>
     </div>
   );

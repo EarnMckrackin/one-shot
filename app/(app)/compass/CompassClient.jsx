@@ -4,7 +4,7 @@ import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 
 const MODES = [
-  { id: "catchup",     label: "Catch Me Up",   desc: "Recap story so far — no spoilers beyond what you've read" },
+  { id: "catchup",     label: "Catch Me Up",   desc: "Show recent reading checkpoints from your logs" },
   { id: "keyissue",    label: "Key Issues",     desc: "Find historically significant issues in your collection" },
   { id: "connections", label: "How It Connects", desc: "Map crossovers, shared characters, and reading order" },
 ];
@@ -83,7 +83,7 @@ export default function CompassClient() {
   return (
     <div style={s.page}>
       <h1 style={s.title}>Continuity Compass</h1>
-      <p style={s.sub}>Your spoiler-safe AI reading companion. It knows exactly what you've read.</p>
+      <p style={s.sub}>Your local reading-history companion. External AI calls are disabled.</p>
 
       {/* Mode selector */}
       <div style={s.modeRow}>
@@ -141,7 +141,7 @@ export default function CompassClient() {
           {loading ? "…" : "Send"}
         </InkButton>
       </div>
-      <p style={s.hint}>Enter to send · Shift+Enter for new line · Compass never spoils unread issues</p>
+      <p style={s.hint}>Enter to send · Shift+Enter for new line · Compass uses your saved reading logs</p>
     </div>
   );
 }

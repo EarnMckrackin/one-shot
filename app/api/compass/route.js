@@ -1,8 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req) {
   const cookieStore = await cookies();
@@ -42,53 +39,51 @@ export async function POST(req) {
     });
   }
 
-  const readSummary = readList.length
-    ? readList.map((r) => `- ${r.series}${r.issue ? ` #${r.issue}` : ""}${r.publisher ? ` (${r.publisher})` : ""}`).join("\n")
-    : "No comics logged yet.";
-
-  const modeInstructions = {
-    catchup: "You are helping the user catch up on what happened in their comics WITHOUT spoiling anything beyond what they've read. Summarize story events, character moments, and cliffhangers only up to their last read issue.",
-    keyissue: "You are a comic book expert identifying key issues. Tell the user which issues in series they own are historically significant (first appearances, deaths, major events) — only reveal spoilers for issues they've already read.",
-    connections: "You are mapping connections across comics. Explain how characters, events, and storylines in the user's collection intersect — crossovers, shared universes, reading order recommendations. Only spoil things they've read.",
-  };
-
-  const systemPrompt = `You are the Continuity Compass, an AI reading companion embedded in One Shot — a personal comic book management app.
-
-You have access to this user's reading history. CRITICAL RULE: Never spoil plot events, deaths, reveals, or twists from issues the user has NOT read.
-
-The user has read these comics:
-${readSummary}
-
-Mode: ${modeInstructions[mode] ?? modeInstructions.connections}
-
-When referencing something from an unread issue, say "I can't say what happens next without spoiling it, but I can tell you it's worth reading." Keep responses focused, enthusiastic, and treat the user as a fellow collector.`;
-
-  // Build message history for multi-turn conversation
-  const messages = [
-    ...(history ?? []).map((h) => ({ role: h.role, content: h.content })),
-    { role: "user", content: message },
-  ];
-
-  const stream = await anthropic.messages.stream({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages,
-  });
-
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of stream) {
-        if (chunk.type === "content_block_delta" && chunk.delta?.type === "text_delta") {
-          controller.enqueue(encoder.encode(chunk.delta.text));
-        }
-      }
-      controller.close();
-    },
-  });
-
-  return new Response(readable, {
+  const response = buildCompassResponse(mode, readList);
+  return new Response(response, {
     headers: { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" },
   });
+}
+
+function buildCompassResponse(mode, readList) {
+  if (!readList.length) {
+    return "Log a few readings first. Compass now summarizes from your saved reading history instead of generating outside context.";
+  }
+
+  const recent = readList.slice(0, 6);
+  const grouped = new Map();
+  for (const item of readList) {
+    const key = item.series || "Unknown";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(item);
+  }
+
+  if (mode === "catchup") {
+    return [
+      "Recent reading checkpoint:",
+      ...recent.map((r) => `- ${r.series}${r.issue ? ` #${r.issue}` : ""}${r.publisher ? ` (${r.publisher})` : ""}`),
+      "",
+      "This local version avoids generated plot recaps. Open the comic detail pages for saved descriptions and reading history without spoiler risk.",
+    ].join("\n");
+  }
+
+  if (mode === "keyissue") {
+    return [
+      "Collection signals from your logged reads:",
+      ...[...grouped.entries()].slice(0, 8).map(([series, items]) => `- ${series}: ${items.length} logged read${items.length !== 1 ? "s" : ""}`),
+      "",
+      "Key-issue analysis will need a dedicated metadata source before launch.",
+    ].join("\n");
+  }
+
+  return [
+    "Series represented in your reading history:",
+    ...[...grouped.entries()].slice(0, 10).map(([series, items]) => `- ${series}: latest logged ${formatIssue(items[0])}`),
+    "",
+    "Compass is now local-history based and does not call an external AI service.",
+  ].join("\n");
+}
+
+function formatIssue(item) {
+  return item.issue ? `#${item.issue}` : "issue";
 }

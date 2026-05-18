@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic();
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -41,7 +38,6 @@ export async function POST(request) {
   const minutesPerDay  = prefsResult.data?.minutes_per_day ?? 30;
   const issuesPerDay   = Math.max(1, Math.floor(minutesPerDay / 15));
   const pullSeriesIds  = new Set((pullResult.data ?? []).map(p => p.series?.id).filter(Boolean));
-  const pullSeriesNames = (pullResult.data ?? []).map(p => p.series?.name).filter(Boolean);
   const readIds        = new Set((logResult.data ?? []).map(l => l.comic_id).filter(Boolean));
 
   const unread = (comicsResult.data ?? []).filter(c => !readIds.has(c.id));
@@ -60,56 +56,25 @@ export async function POST(request) {
     s.comics.sort((a, b) => (parseFloat(a.num) || 0) - (parseFloat(b.num) || 0));
   }
 
-  const seriesContext = Object.values(bySeries)
-    .sort((a, b) => (b.isPull ? 1 : 0) - (a.isPull ? 1 : 0))
-    .map(s => `${s.isPull ? "[PULL LIST] " : ""}${s.name}: ${s.comics.map(c => `#${c.num}(${c.id})`).join(", ")}`)
-    .join("\n");
+  const queues = Object.values(bySeries)
+    .sort((a, b) => (b.isPull ? 1 : 0) - (a.isPull ? 1 : 0) || a.name.localeCompare(b.name))
+    .map((series) => ({ ...series, comics: [...series.comics] }));
 
-  const recentContext = (logResult.data ?? []).slice(0, 10)
-    .map(l => `${l.comic?.series?.name ?? "?"} #${l.comic?.issue_number ?? "?"}`)
-    .join(", ") || "none";
-
-  const prompt = `You are a comic reading scheduler. The user reads ${minutesPerDay} min/day (~${issuesPerDay} issue${issuesPerDay !== 1 ? "s" : ""}/day at 15 min each).
-
-Pull list series (highest priority): ${pullSeriesNames.join(", ") || "none yet"}.
-Recently read: ${recentContext}.
-
-Unread comics available ([PULL LIST] = actively following, issues listed in reading order):
-${seriesContext}
-
-Schedule 7 days from ${days[0]} to ${days[6]}. Rules:
-- Keep series in order (read lower issue numbers before higher)
-- Max ${issuesPerDay} issue${issuesPerDay !== 1 ? "s" : ""} per day
-- Prioritize pull list series, then series recently being read
-- Mix series across days when possible
-- Only use the exact UUIDs listed above
-
-Reply with ONLY this JSON (no markdown fences, no extra text):
-{"days":[{"date":"YYYY-MM-DD","comic_ids":["uuid"],"note":"one line reason"},...]}`
-
-  const msg = await anthropic.messages.create({
-    model:      "claude-sonnet-4-6",
-    max_tokens: 1024,
-    messages:   [{ role: "user", content: prompt }],
-  });
-
-  let plan;
-  try {
-    const raw     = msg.content.find(b => b.type === "text")?.text ?? "";
-    const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-    plan = JSON.parse(cleaned);
-  } catch {
-    return NextResponse.json({ error: "AI returned an unreadable response. Try again." }, { status: 500 });
+  const plan = { days: days.map((date) => ({ date, comic_ids: [], note: "Local reading plan" })) };
+  let cursor = 0;
+  for (const day of plan.days) {
+    while (day.comic_ids.length < issuesPerDay && queues.some((series) => series.comics.length > 0)) {
+      const series = queues[cursor % queues.length];
+      cursor += 1;
+      const next = series.comics.shift();
+      if (next) day.comic_ids.push(next.id);
+    }
   }
 
-  // Validate: only schedule comics that actually belong to this user
-  const validIds = new Set(unread.map(c => c.id));
   const inserts  = [];
   for (const day of (plan.days ?? [])) {
     for (const id of (day.comic_ids ?? [])) {
-      if (validIds.has(id)) {
-        inserts.push({ user_id: user.id, comic_id: id, scheduled_for: day.date, completed: false });
-      }
+      inserts.push({ user_id: user.id, comic_id: id, scheduled_for: day.date, completed: false });
     }
   }
 

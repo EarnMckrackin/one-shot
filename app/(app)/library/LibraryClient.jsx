@@ -4,6 +4,7 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
+const LOCAL_LIBRARY_KEY = "oneshot:library-cache:v1";
 const SORTS = [
   { value: "created_desc", label: "Recently Added" },
   { value: "release_desc", label: "Release Date" },
@@ -27,6 +28,8 @@ export default function LibraryClient({ publishers, allSeries }) {
   useEffect(() => {
     async function load() {
       setLoading(true);
+      const cached = readCachedLibrary();
+      if (cached.length) setComics(cached);
       let q = supabase
         .from("comics")
         .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(name), publisher:publisher_id(name), reading_log(id)")
@@ -39,8 +42,12 @@ export default function LibraryClient({ publishers, allSeries }) {
         ? q.is("release_date", null)
         : q.gte("release_date", `${releaseFilter}-01`).lte("release_date", lastDayOfMonth(releaseFilter));
 
-      const { data } = await q;
-      setComics((data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 })));
+      const { data, error } = await q;
+      if (!error) {
+        const next = (data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 }));
+        setComics(next);
+        writeCachedLibrary(next);
+      }
       setLoading(false);
     }
 	    load();
@@ -277,6 +284,21 @@ function sortComics(comics, sortBy) {
 
 function hasDigitalPdf(comic) {
   return Boolean(comic.has_pdf && comic.drive_file_id);
+}
+
+function readCachedLibrary() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(LOCAL_LIBRARY_KEY) || "[]");
+    return Array.isArray(cached) ? cached : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedLibrary(comics) {
+  try {
+    localStorage.setItem(LOCAL_LIBRARY_KEY, JSON.stringify(comics));
+  } catch {}
 }
 
 function getReleaseMonths(comics) {

@@ -13,7 +13,7 @@ export default function ArcsClient() {
   async function load() {
     const { data } = await supabase
       .from("story_arcs")
-      .select("*, arc_issues(id, order_index, series_name, issue_number, comic_id)")
+      .select("*, arc_issues(id, order_index, series_name, issue_number, comic_id, comic:comic_id(id))")
       .order("is_system", { ascending: false })
       .order("name");
     setArcs(data ?? []);
@@ -94,7 +94,7 @@ function ArcGrid({ arcs, onDelete }) {
     <div style={s.grid}>
       {arcs.map((arc) => {
         const total   = arc.arc_issues?.length ?? 0;
-        const owned   = arc.arc_issues?.filter((i) => i.comic_id).length ?? 0;
+        const owned   = arc.arc_issues?.filter((i) => i.comic).length ?? 0;
         const pct     = total ? Math.round((owned / total) * 100) : 0;
 
         return (

@@ -44,7 +44,7 @@ export default function ReleasesClient() {
       setReleases(cached.releases);
       setPullSet(new Set(cached.pullKeys ?? []));
       setSeriesIdMap(cached.seriesIdMap ?? {});
-      setLibrarySet(new Set(cached.libraryKeys ?? []));
+      setLibrarySet(new Set());
       setSource(cached.source ?? "local cache");
       setWarning("Showing cached releases while refreshing.");
       setCacheInfo(cached.cachedAt);
@@ -89,7 +89,6 @@ export default function ReleasesClient() {
         source: releaseSource ?? null,
         warning: releaseWarning ?? null,
         pullKeys,
-        libraryKeys,
         seriesIdMap: map,
       });
       setCacheInfo(new Date().toISOString());

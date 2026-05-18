@@ -52,7 +52,7 @@ export default function ScheduleClient() {
       .lte("scheduled_for", end)
       .order("scheduled_for");
     if (error) setError(error.message);
-    setSchedule(data ?? []);
+    setSchedule((data ?? []).filter((item) => item.comic));
     setLoading(false);
   }
 

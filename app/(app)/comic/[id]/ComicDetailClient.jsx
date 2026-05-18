@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabase-browser";
 import InkButton from "../../../../components/InkButton";
+import { removeLocalLibraryComic } from "../../../../lib/local-data-store";
 import { saveLocalPdf } from "../../../../lib/local-pdf-store";
 
 export default function ComicDetailClient({ comic: initial }) {
@@ -146,6 +147,7 @@ export default function ComicDetailClient({ comic: initial }) {
   async function handleDelete() {
     if (!confirm("Remove this comic from your library?")) return;
     await supabase.from("comics").delete().eq("id", comic.id);
+    removeLocalLibraryComic(comic.id);
     router.push("/library");
   }
 

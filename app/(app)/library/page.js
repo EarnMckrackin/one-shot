@@ -5,7 +5,6 @@ export const metadata = { title: "Library — One Shot" };
 
 export default async function LibraryPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
   const [{ data: publishers }, { data: series }] = await Promise.all([
     supabase.from("publishers").select("id, name").order("name"),
@@ -14,7 +13,6 @@ export default async function LibraryPage() {
 
   return (
     <LibraryClient
-      userId={user.id}
       publishers={publishers ?? []}
       allSeries={series ?? []}
     />

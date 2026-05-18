@@ -38,7 +38,9 @@ export default function StatsClient() {
       ]);
 
       const totalComics = comics?.length ?? 0;
-      const totalRead   = new Set(logs?.map((l) => l.comic_id)).size;
+      const comicIds = new Set((comics ?? []).map((comic) => comic.id));
+      const validLogs = (logs ?? []).filter((log) => comicIds.has(log.comic_id));
+      const totalRead   = new Set(validLogs.map((l) => l.comic_id)).size;
 
       // Publisher breakdown
       const pubCounts = {};
@@ -53,7 +55,7 @@ export default function StatsClient() {
 
       // Monthly reading
       const monthCounts = {};
-      for (const log of logs ?? []) {
+      for (const log of validLogs) {
         const key = getMonthKey(log.read_at);
         monthCounts[key] = (monthCounts[key] ?? 0) + 1;
       }
@@ -62,7 +64,7 @@ export default function StatsClient() {
       const maxMonthCount = Math.max(...last12.map((m) => m.count), 1);
 
       // Streak
-      const streak = calcStreak(logs?.map((l) => l.read_at) ?? []);
+      const streak = calcStreak(validLogs.map((l) => l.read_at));
 
       // This month vs last month
       const now       = new Date();
@@ -75,7 +77,7 @@ export default function StatsClient() {
 
       // Top series
       const seriesCounts = {};
-      for (const l of logs ?? []) {
+      for (const l of validLogs) {
         const comic = comics?.find((c) => c.id === l.comic_id);
         const name = comic?.series?.name ?? "Standalone";
         seriesCounts[name] = (seriesCounts[name] ?? 0) + 1;
@@ -85,7 +87,7 @@ export default function StatsClient() {
         .slice(0, 5)
         .map(([name, count]) => ({ name, count }));
 
-      setStats({ totalComics, totalRead, publishers, last12, maxMonthCount, streak, readThisMonth, readLastMonth, topSeries, totalLogs: logs?.length ?? 0 });
+      setStats({ totalComics, totalRead, publishers, last12, maxMonthCount, streak, readThisMonth, readLastMonth, topSeries, totalLogs: validLogs.length });
       setLoading(false);
     }
     load();

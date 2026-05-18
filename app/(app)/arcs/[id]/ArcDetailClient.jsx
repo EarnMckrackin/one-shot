@@ -72,9 +72,9 @@ export default function ArcDetailClient({ params }) {
   if (loading) return <div style={{ color: C.textFaint, padding: 40 }}>Loading…</div>;
   if (!arc)    return <div style={{ color: C.accent, padding: 40 }}>Arc not found</div>;
 
-  const owned   = issues.filter((i) => i.comic_id).length;
+  const owned   = issues.filter((i) => i.comic).length;
   const read    = issues.filter((i) => i.comic?.reading_log?.length > 0).length;
-  const nextUp  = issues.find((i) => i.comic_id && !(i.comic?.reading_log?.length > 0));
+  const nextUp  = issues.find((i) => i.comic && !(i.comic?.reading_log?.length > 0));
 
   return (
     <div style={s.page}>
@@ -93,7 +93,7 @@ export default function ArcDetailClient({ params }) {
       {nextUp && (
         <div style={s.nextUp}>
           <span style={s.nextLabel}>Up next</span>
-          <Link href={`/comic/${nextUp.comic_id}`} style={s.nextTitle}>
+          <Link href={`/comic/${nextUp.comic.id}`} style={s.nextTitle}>
             {nextUp.series_name} #{nextUp.issue_number} — {nextUp.title}
           </Link>
         </div>
@@ -102,7 +102,7 @@ export default function ArcDetailClient({ params }) {
       <div style={s.issueList}>
         {issues.map((issue, idx) => {
           const isRead  = (issue.comic?.reading_log?.length ?? 0) > 0;
-          const isOwned = !!issue.comic_id;
+          const isOwned = !!issue.comic;
 
           return (
             <div key={issue.id} style={s.issueRow}>
@@ -122,7 +122,7 @@ export default function ArcDetailClient({ params }) {
                   {issue.title ? `  ${issue.title}` : ""}
                 </p>
                 {isOwned && (
-                  <Link href={`/comic/${issue.comic_id}`} style={s.libraryLink}>
+                  <Link href={`/comic/${issue.comic.id}`} style={s.libraryLink}>
                     In your library →
                   </Link>
                 )}

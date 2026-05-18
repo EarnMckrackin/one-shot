@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
+import { readCachedReleases, writeCachedReleases, writePriceCacheFromReleases } from "../../../lib/local-data-store";
 
 function getWednesday(offset = 0) {
   const d = new Date();
@@ -27,6 +28,7 @@ export default function ReleasesClient() {
   const [librarySet, setLibrarySet]   = useState(new Set());
   const [source, setSource]           = useState(null);
   const [warning, setWarning]         = useState(null);
+  const [cacheInfo, setCacheInfo]     = useState(null);
 
   const wednesday = getWednesday(weekOffset);
   const weekLabel = formatWeekLabel(wednesday);
@@ -35,6 +37,18 @@ export default function ReleasesClient() {
     setLoading(true);
     setError(null);
     setWarning(null);
+    setCacheInfo(null);
+
+    const cached = readCachedReleases(wednesday);
+    if (cached?.releases?.length) {
+      setReleases(cached.releases);
+      setPullSet(new Set(cached.pullKeys ?? []));
+      setSeriesIdMap(cached.seriesIdMap ?? {});
+      setLibrarySet(new Set(cached.libraryKeys ?? []));
+      setSource(cached.source ?? "local cache");
+      setWarning("Showing cached releases while refreshing.");
+      setCacheInfo(cached.cachedAt);
+    }
 
     Promise.all([
       fetch(`/api/releases?date=${wednesday}`).then(r => r.json()),
@@ -50,6 +64,7 @@ export default function ReleasesClient() {
       setReleases(releaseList);
       setSource(releaseSource ?? null);
       setWarning(releaseWarning ?? null);
+      writePriceCacheFromReleases(releaseList);
 
       // Build cv_id → series_db_id via name matching (works for LOCG + ComicVine)
       const map = {};
@@ -65,9 +80,23 @@ export default function ReleasesClient() {
       });
 
       setSeriesIdMap(map);
-      setPullSet(new Set([...(pullMatches ?? []), ...Object.keys(map)]));
-      setLibrarySet(new Set((library ?? []).map(libraryKey)));
-    }).catch(e => setError(e.message))
+      const pullKeys = [...(pullMatches ?? []), ...Object.keys(map)];
+      const libraryKeys = (library ?? []).map(libraryKey);
+      setPullSet(new Set(pullKeys));
+      setLibrarySet(new Set(libraryKeys));
+      writeCachedReleases(wednesday, {
+        releases: releaseList,
+        source: releaseSource ?? null,
+        warning: releaseWarning ?? null,
+        pullKeys,
+        libraryKeys,
+        seriesIdMap: map,
+      });
+      setCacheInfo(new Date().toISOString());
+    }).catch(e => {
+      if (!cached?.releases?.length) setError(e.message);
+      else setWarning(`Offline cache in use. ${e.message}`);
+    })
       .finally(() => setLoading(false));
   }, [wednesday]);
 
@@ -213,6 +242,7 @@ export default function ReleasesClient() {
       {error   && <p style={{ ...s.msg, color: "var(--accent)" }}>{error}</p>}
       {!loading && !error && warning && <p style={s.note}>Fallback source in use. {warning}</p>}
       {!loading && !error && source && <p style={s.source}>Source: {source}</p>}
+      {!loading && !error && cacheInfo && <p style={s.source}>Cached: {formatCacheTime(cacheInfo)}</p>}
 
       {!loading && !error && (
         <>
@@ -327,6 +357,14 @@ function addDays(dateStr, days) {
 
 function releaseKey(release) {
   return `${normalize(release.series_name || release.title)}|${String(release.issue_number ?? "")}`;
+}
+
+function formatCacheTime(value) {
+  try {
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return "local";
+  }
 }
 
 function libraryKey(comic) {

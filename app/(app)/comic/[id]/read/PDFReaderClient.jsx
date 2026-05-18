@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
+import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf } from "../../../../../lib/local-pdf-store";
 
 export default function PDFReaderClient({ comic }) {
@@ -20,10 +21,29 @@ export default function PDFReaderClient({ comic }) {
   const [layoutMode, setLayoutMode] = useState("single");
   const [viewerMode, setViewerMode] = useState("canvas");
   const [openingNative, setOpeningNative] = useState(false);
+  const [lastOpenedPage, setLastOpenedPage] = useState(null);
 
   const title = useMemo(() => {
     return `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`;
   }, [comic.title, comic.issue_number]);
+
+  useEffect(() => {
+    const saved = readReaderProgress(comic.id);
+    if (saved?.zoom) setZoom(saved.zoom);
+    if (saved?.layoutMode) setLayoutMode(saved.layoutMode);
+    if (saved?.viewerMode) setViewerMode(saved.viewerMode);
+    if (saved?.pageNumber) setLastOpenedPage(saved.pageNumber);
+  }, [comic.id]);
+
+  useEffect(() => {
+    writeReaderProgress(comic.id, {
+      pageNumber: Math.max(renderedPage, lastOpenedPage ?? 0),
+      pageCount,
+      zoom,
+      layoutMode,
+      viewerMode,
+    });
+  }, [comic.id, renderedPage, pageCount, zoom, layoutMode, viewerMode, lastOpenedPage]);
 
   useEffect(() => {
     let active = true;
@@ -170,6 +190,7 @@ export default function PDFReaderClient({ comic }) {
           <p style={s.eyebrow}>PDF Reader</p>
           <h1 style={s.title}>{title}</h1>
           {sourceLabel && <p style={s.source}>{sourceLabel}</p>}
+          {lastOpenedPage && <p style={s.source}>Last opened page {lastOpenedPage}</p>}
         </div>
         <div style={s.controls}>
           <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.7, z - 0.15))}>-</button>

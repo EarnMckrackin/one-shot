@@ -3,9 +3,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
+import { getLocalPriceForComic, localConnectionState, readLocalLibrary, writeLocalLibrary } from "../../../lib/local-data-store";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
-const LOCAL_LIBRARY_KEY = "oneshot:library-cache:v1";
 const SORTS = [
   { value: "created_desc", label: "Recently Added" },
   { value: "release_desc", label: "Release Date" },
@@ -26,6 +26,8 @@ export default function LibraryClient({ publishers, allSeries }) {
   const [releaseFilter, setReleaseFilter] = useState("");
   const [formatFilter, setFormatFilter] = useState("Both");
   const [sortBy, setSortBy]     = useState("created_desc");
+  const [cacheInfo, setCacheInfo] = useState(null);
+  const [connectionState, setConnectionState] = useState("unknown");
 
   useEffect(() => {
     const publisher = searchParams.get("publisher") || "";
@@ -44,30 +46,28 @@ export default function LibraryClient({ publishers, allSeries }) {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const cached = readCachedLibrary();
-      if (cached.length) setComics(cached);
+      setConnectionState(localConnectionState());
+      const cached = readLocalLibrary();
+      if (cached.comics.length) {
+        setComics(mergeLocalPrices(cached.comics));
+        setCacheInfo(cached.savedAt);
+      }
       let q = supabase
         .from("comics")
-        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(name), publisher:publisher_id(name), reading_log(id)")
+        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, estimated_value, release_date, created_at, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
         .order("created_at", { ascending: false });
-
-      if (search)    q = q.ilike("title", `%${search}%`);
-      if (pubFilter) q = q.eq("publisher_id", pubFilter);
-      if (seriesFilter) q = q.eq("series_id", seriesFilter);
-      if (releaseFilter) q = releaseFilter === "unknown"
-        ? q.is("release_date", null)
-        : q.gte("release_date", `${releaseFilter}-01`).lte("release_date", lastDayOfMonth(releaseFilter));
 
       const { data, error } = await q;
       if (!error) {
-        const next = (data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 }));
+        const next = mergeLocalPrices((data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 })));
         setComics(next);
-        writeCachedLibrary(next);
+        writeLocalLibrary(next);
+        setCacheInfo(new Date().toISOString());
       }
       setLoading(false);
     }
 	    load();
-	  }, [search, pubFilter, seriesFilter, releaseFilter]);
+	  }, []);
 
   useEffect(() => {
     async function loadReleaseOptions() {
@@ -85,7 +85,18 @@ export default function LibraryClient({ publishers, allSeries }) {
     fetch("/api/comics/enrich-missing", { method: "POST" }).catch(() => {});
   }, []);
 
-  const formatFiltered = comics.filter((comic) => {
+  const locallyFiltered = comics.filter((comic) => {
+    if (search && !matchesSearch(comic, search)) return false;
+    if (pubFilter && String(comic.publisher?.id) !== String(pubFilter)) return false;
+    if (seriesFilter && String(comic.series?.id) !== String(seriesFilter)) return false;
+    if (releaseFilter) {
+      if (releaseFilter === "unknown" && comic.release_date) return false;
+      if (releaseFilter !== "unknown" && comic.release_date?.slice(0, 7) !== releaseFilter) return false;
+    }
+    return true;
+  });
+
+  const formatFiltered = locallyFiltered.filter((comic) => {
     if (formatFilter === "PDF") return hasDigitalPdf(comic);
     if (formatFilter === "Physical") return !hasDigitalPdf(comic);
     return true;
@@ -106,6 +117,10 @@ export default function LibraryClient({ publishers, allSeries }) {
         <h1 style={s.title}>Library</h1>
         <span style={s.count}>{comics.length} ISSUES</span>
       </div>
+      <p style={s.localStatus}>
+        {connectionState === "offline" ? "Offline library cache" : "Local cache ready"}
+        {cacheInfo ? ` · saved ${formatCacheTime(cacheInfo)}` : ""}
+      </p>
 
       <input
         style={s.search}
@@ -263,14 +278,16 @@ export default function LibraryClient({ publishers, allSeries }) {
                       <span style={s.readBadge}>{comic.read_count > 1 ? `×${comic.read_count}` : "✓"}</span>
                     )}
                     {hasDigitalPdf(comic) && <span style={s.pdfBadge}>PDF</span>}
+                    {comic.has_pdf && !comic.drive_file_id && <span style={s.localPdfBadge}>Device</span>}
                   </div>
 	                  <div style={s.info}>
 	                    <p style={s.series}>{comic.series?.name ?? ""}</p>
 	                    <p style={s.issueTitle}>{comic.issue_number ? `#${comic.issue_number}` : comic.title}</p>
 	                    <p style={s.cardMeta}>{[comic.publisher?.name, formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
-	                    {Number.isFinite(comic.estimated_value) && (
-	                      <p style={s.value}>~${comic.estimated_value.toFixed(2)}</p>
+	                    {Number.isFinite(comic.estimated_value ?? comic.local_estimated_value) && (
+	                      <p style={s.value}>~${(comic.estimated_value ?? comic.local_estimated_value).toFixed(2)}</p>
 	                    )}
+	                    {comic.local_value_direction && <p style={s.valueTrend}>{comic.local_value_direction}</p>}
 	                  </div>
                 </Link>
               ))}
@@ -302,7 +319,7 @@ function sortComics(comics, sortBy) {
       text(a.publisher?.name).localeCompare(text(b.publisher?.name))
     );
   } else if (sortBy === "value_desc") {
-    sorted.sort((a, b) => (b.estimated_value ?? -1) - (a.estimated_value ?? -1));
+    sorted.sort((a, b) => ((b.estimated_value ?? b.local_estimated_value) ?? -1) - ((a.estimated_value ?? a.local_estimated_value) ?? -1));
   } else {
     sorted.sort((a, b) => time(b.created_at) - time(a.created_at));
   }
@@ -314,19 +331,40 @@ function hasDigitalPdf(comic) {
   return Boolean(comic.has_pdf);
 }
 
-function readCachedLibrary() {
-  try {
-    const cached = JSON.parse(localStorage.getItem(LOCAL_LIBRARY_KEY) || "[]");
-    return Array.isArray(cached) ? cached : [];
-  } catch {
-    return [];
-  }
+function matchesSearch(comic, search) {
+  const needle = search.trim().toLowerCase();
+  if (!needle) return true;
+  return [
+    comic.title,
+    comic.issue_number && `#${comic.issue_number}`,
+    comic.issue_number,
+    comic.series?.name,
+    comic.publisher?.name,
+  ].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle));
 }
 
-function writeCachedLibrary(comics) {
+function mergeLocalPrices(comics) {
+  return comics.map((comic) => {
+    const cached = getLocalPriceForComic(comic);
+    if (!cached) return comic;
+    const latest = Number(cached.latest);
+    const previous = Number(cached.previous);
+    return {
+      ...comic,
+      local_estimated_value: Number.isFinite(latest) ? latest : undefined,
+      local_value_direction: Number.isFinite(latest) && Number.isFinite(previous) && latest !== previous
+        ? latest > previous ? "up locally" : "down locally"
+        : null,
+    };
+  });
+}
+
+function formatCacheTime(value) {
   try {
-    localStorage.setItem(LOCAL_LIBRARY_KEY, JSON.stringify(comics));
-  } catch {}
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return "locally";
+  }
 }
 
 function getReleaseMonths(comics) {
@@ -366,6 +404,7 @@ const s = {
   header:          { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, flexWrap: "nowrap" },
   title:           { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, whiteSpace: "nowrap" },
   count:           { color: "var(--text-faint)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", whiteSpace: "nowrap" },
+  localStatus:     { color: "var(--text-faint)", fontSize: 12, marginTop: -8, marginBottom: 12 },
   search:          { marginBottom: 12, maxWidth: 480 },
   viewBar:         { display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" },
   sortRow:         { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" },
@@ -404,9 +443,11 @@ const s = {
   coverPlaceholder:{ background: "var(--bg-surface)", color: "var(--text-faint)", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
   readBadge:       { position: "absolute", top: 6, right: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
   pdfBadge:        { position: "absolute", bottom: 6, right: 6, background: "var(--hero-gold)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
+  localPdfBadge:   { position: "absolute", bottom: 6, left: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
   info:            { padding: "8px 10px 10px" },
   series:          { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
   issueTitle:      { color: "var(--text)", fontSize: 13, fontWeight: 600 },
   cardMeta:        { color: "var(--text-faint)", fontSize: 10, marginTop: 3 },
   value:           { color: "var(--hero-gold)", fontSize: 12, fontWeight: 700, marginTop: 4, fontFamily: "var(--font-mono)" },
+  valueTrend:      { color: "var(--text-faint)", fontSize: 10, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.05em" },
 };

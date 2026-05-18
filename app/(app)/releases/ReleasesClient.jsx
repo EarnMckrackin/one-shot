@@ -56,7 +56,7 @@ export default function ReleasesClient() {
         .select("series_id, series:series_id(name, comicvine_id)")
         .eq("active", true),
       supabase.from("comics")
-        .select("id, comicvine_id, title, issue_number, series:series_id(name)")
+        .select("id, comicvine_id")
         .gte("release_date", wednesday)
         .lte("release_date", addDays(wednesday, 6)),
     ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }, { data: library }]) => {
@@ -81,7 +81,7 @@ export default function ReleasesClient() {
 
       setSeriesIdMap(map);
       const pullKeys = [...(pullMatches ?? []), ...Object.keys(map)];
-      const libraryKeys = (library ?? []).map(libraryKey);
+      const libraryKeys = (library ?? []).map(libraryKey).filter(Boolean);
       setPullSet(new Set(pullKeys));
       setLibrarySet(new Set(libraryKeys));
       writeCachedReleases(wednesday, {
@@ -212,7 +212,8 @@ export default function ReleasesClient() {
         });
       }
 
-      setLibrarySet(prev => new Set([...prev, key]));
+      const ownershipKey = releaseOwnershipKey(release);
+      if (ownershipKey) setLibrarySet(prev => new Set([...prev, ownershipKey]));
     } catch (e) {
       alert("Could not add release to library: " + e.message);
     } finally {
@@ -255,7 +256,7 @@ export default function ReleasesClient() {
                 <ReleaseRow key={r.cv_id} release={r} isPulled
                   isToggling={toggling === r.cv_id}
                   isAdding={adding === releaseKey(r)}
-                  isInLibrary={librarySet.has(releaseKey(r))}
+                  isInLibrary={librarySet.has(releaseOwnershipKey(r))}
                   onToggle={() => togglePullList(r)}
                   onAdd={() => addToLibrary(r)} />
               ))}
@@ -269,7 +270,7 @@ export default function ReleasesClient() {
                 <ReleaseRow key={r.cv_id} release={r}
                   isToggling={toggling === r.cv_id}
                   isAdding={adding === releaseKey(r)}
-                  isInLibrary={librarySet.has(releaseKey(r))}
+                  isInLibrary={librarySet.has(releaseOwnershipKey(r))}
                   onToggle={() => togglePullList(r)}
                   onAdd={() => addToLibrary(r)} />
               ))}
@@ -358,6 +359,11 @@ function releaseKey(release) {
   return `${normalize(release.series_name || release.title)}|${String(release.issue_number ?? "")}`;
 }
 
+function releaseOwnershipKey(release) {
+  const id = release.cv_id ?? release.metron_id;
+  return id ? `issue:${String(id)}` : "";
+}
+
 function formatCacheTime(value) {
   try {
     return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
@@ -367,7 +373,7 @@ function formatCacheTime(value) {
 }
 
 function libraryKey(comic) {
-  return `${normalize(comic.series?.name || comic.title)}|${String(comic.issue_number ?? "")}`;
+  return comic.comicvine_id ? `issue:${String(comic.comicvine_id)}` : "";
 }
 
 const s = {

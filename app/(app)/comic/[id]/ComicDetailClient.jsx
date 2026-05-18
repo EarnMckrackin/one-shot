@@ -164,7 +164,7 @@ export default function ComicDetailClient({ comic: initial }) {
       });
       const session = await sessionRes.json().catch(() => ({}));
 
-      if (sessionRes.status === 403) {
+      if (sessionRes.status === 403 && session.code === "not_connected") {
         router.push("/api/google/auth");
         return;
       }

@@ -265,6 +265,11 @@ export default function ScanClient() {
     setPdfProgress("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const driveStatus = await fetch("/api/google/status").then((res) => res.json()).catch(() => ({ connected: false }));
+      if (!driveStatus.connected) {
+        router.push("/api/google/auth");
+        return;
+      }
 
       let publisherId = null;
       let seriesId    = null;
@@ -327,7 +332,7 @@ export default function ScanClient() {
     });
     const session = await sessionRes.json().catch(() => ({}));
 
-    if (sessionRes.status === 403) {
+    if (sessionRes.status === 403 && session.code === "not_connected") {
       router.push("/api/google/auth");
       throw new Error("Google Drive not connected.");
     }

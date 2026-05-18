@@ -20,7 +20,10 @@ export async function POST(request) {
       .single();
 
     if (error || !integration) {
-      return NextResponse.json({ error: "Google Drive not connected" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Google Drive not connected", code: "not_connected" },
+        { status: 403 }
+      );
     }
 
     const session = await createPDFUploadSession(
@@ -33,7 +36,10 @@ export async function POST(request) {
   } catch (error) {
     console.error("[google/upload-session]", error);
     return NextResponse.json(
-      { error: userFacingGoogleError(error) },
+      {
+        error: userFacingGoogleError(error),
+        code: googleStatus(error) === 403 ? "drive_rejected" : "upload_session_failed",
+      },
       { status: googleStatus(error) }
     );
   }

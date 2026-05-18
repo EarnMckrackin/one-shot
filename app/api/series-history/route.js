@@ -48,14 +48,14 @@ export async function GET(request) {
     .filter((issue) => {
       const value = issueValue(issue.issue_number);
       if (!Number.isFinite(value)) return false;
-      return Number.isFinite(currentIssue) ? value < currentIssue : true;
+      return Number.isFinite(currentIssue) ? value !== currentIssue : true;
     })
     .filter((issue) => {
       if (!publisher || !issue.publisher) return true;
       return norm(issue.publisher) === norm(publisher) || norm(issue.publisher).includes(norm(publisher)) || norm(publisher).includes(norm(issue.publisher));
     })
-    .sort((a, b) => issueValue(b.issue_number) - issueValue(a.issue_number))
-    .slice(0, 20)
+    .sort((a, b) => issueValue(a.issue_number) - issueValue(b.issue_number))
+    .slice(0, 30)
     .map((issue) => {
       const owned = ownedByIssue.get(normalizeIssue(issue.issue_number));
       return {

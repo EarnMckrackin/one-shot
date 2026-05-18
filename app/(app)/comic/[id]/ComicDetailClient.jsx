@@ -351,14 +351,14 @@ export default function ComicDetailClient({ comic: initial }) {
 
       <div style={s.section}>
         <div style={s.sectionHeaderRow}>
-          <h2 style={s.sectionTitle}>Earlier In This Series</h2>
+          <h2 style={s.sectionTitle}>Also In This Series</h2>
           {priorIssues.length > 0 && <span style={s.sectionCount}>{priorIssues.length} found</span>}
         </div>
 
-        {loadingPrior && <p style={s.priorHint}>Loading earlier issues...</p>}
+        {loadingPrior && <p style={s.priorHint}>Loading series issues...</p>}
         {!loadingPrior && priorError && <p style={{ ...s.priorHint, color: "var(--accent)" }}>{priorError}</p>}
         {!loadingPrior && !priorError && priorIssues.length === 0 && (
-          <p style={s.priorHint}>No earlier issues found for this series yet.</p>
+          <p style={s.priorHint}>No other issues found for this series yet.</p>
         )}
         {!loadingPrior && !priorError && priorIssues.length > 0 && (
           <div style={s.priorList}>

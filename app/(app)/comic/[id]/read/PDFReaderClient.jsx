@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
-import { ensureNativePdf, getLocalPdf } from "../../../../../lib/local-pdf-store";
+import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
 
 export default function PDFReaderClient({ comic }) {
+  const isNativeRuntime = Capacitor.getPlatform() !== "web";
   const containerRef = useRef(null);
   const canvasRefs = useRef(new Map());
   const renderRunRef = useRef(0);
+  const nativeOpenAttemptedRef = useRef(false);
   const [pageCount, setPageCount] = useState(0);
   const [renderedPage, setRenderedPage] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -19,7 +21,7 @@ export default function PDFReaderClient({ comic }) {
   const [pdfBytes, setPdfBytes] = useState(null);
   const [sourceLabel, setSourceLabel] = useState("");
   const [layoutMode, setLayoutMode] = useState("single");
-  const [viewerMode, setViewerMode] = useState("canvas");
+  const [viewerMode, setViewerMode] = useState(isNativeRuntime ? "native" : "canvas");
   const [openingNative, setOpeningNative] = useState(false);
   const [lastOpenedPage, setLastOpenedPage] = useState(null);
 
@@ -29,11 +31,12 @@ export default function PDFReaderClient({ comic }) {
 
   useEffect(() => {
     const saved = readReaderProgress(comic.id);
+    nativeOpenAttemptedRef.current = false;
     if (saved?.zoom) setZoom(saved.zoom);
     if (saved?.layoutMode) setLayoutMode(saved.layoutMode);
-    if (saved?.viewerMode) setViewerMode(saved.viewerMode);
+    if (!isNativeRuntime && saved?.viewerMode) setViewerMode(saved.viewerMode);
     if (saved?.pageNumber) setLastOpenedPage(saved.pageNumber);
-  }, [comic.id]);
+  }, [comic.id, isNativeRuntime]);
 
   useEffect(() => {
     writeReaderProgress(comic.id, {
@@ -65,7 +68,7 @@ export default function PDFReaderClient({ comic }) {
           return;
         }
         setPdfUrl(url);
-        setPdfBytes(bytes);
+        setPdfBytes(isNativeRuntime ? null : bytes);
         setSourceLabel("Device");
         return;
       }
@@ -73,10 +76,15 @@ export default function PDFReaderClient({ comic }) {
         const url = `/api/google/pdf/${comic.id}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Could not load Google Drive PDF. HTTP ${res.status}.`);
-        const bytes = new Uint8Array(await res.arrayBuffer());
+        const buffer = await res.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const blob = new Blob([buffer], { type: "application/pdf" });
+        if (isNativeRuntime) {
+          await saveLocalPdfBlob(comic.id, blob, `${title}.pdf`);
+        }
         if (!active) return;
         setPdfUrl(url);
-        setPdfBytes(bytes);
+        setPdfBytes(isNativeRuntime ? null : bytes);
         setSourceLabel("Google Drive");
         return;
       }
@@ -94,7 +102,7 @@ export default function PDFReaderClient({ comic }) {
       active = false;
       if (localUrl) URL.revokeObjectURL(localUrl);
     };
-  }, [comic.id, comic.drive_file_id]);
+  }, [comic.id, comic.drive_file_id, isNativeRuntime, title]);
 
   async function openNativePdf() {
     setOpeningNative(true);
@@ -103,6 +111,7 @@ export default function PDFReaderClient({ comic }) {
       const native = await ensureNativePdf(comic.id);
       if (Capacitor.getPlatform() !== "web" && native?.uri) {
         await FileViewer.openDocumentFromLocalPath({ path: nativePath(native.uri) });
+        setViewerMode("native");
         return;
       }
       if (pdfUrl) {
@@ -118,7 +127,13 @@ export default function PDFReaderClient({ comic }) {
   }
 
   useEffect(() => {
-    if (!pdfBytes) return undefined;
+    if (!isNativeRuntime || !sourceLabel || nativeOpenAttemptedRef.current) return;
+    nativeOpenAttemptedRef.current = true;
+    openNativePdf();
+  }, [isNativeRuntime, sourceLabel]);
+
+  useEffect(() => {
+    if (!pdfBytes || viewerMode === "native") return undefined;
     let cancelled = false;
     const renderRun = renderRunRef.current + 1;
     renderRunRef.current = renderRun;
@@ -180,7 +195,7 @@ export default function PDFReaderClient({ comic }) {
     return () => {
       cancelled = true;
     };
-  }, [pdfBytes, zoom, layoutMode]);
+  }, [pdfBytes, zoom, layoutMode, viewerMode]);
 
   return (
     <div style={s.page}>
@@ -207,9 +222,9 @@ export default function PDFReaderClient({ comic }) {
             type="button"
             style={{ ...s.layoutBtn, ...(viewerMode === "native" ? s.layoutBtnActive : {}) }}
             onClick={() => setViewerMode((mode) => mode === "canvas" ? "native" : "canvas")}
-            disabled={!pdfUrl}
+            disabled={isNativeRuntime || !pdfUrl}
           >
-            {viewerMode === "canvas" ? "Native View" : "Rendered View"}
+            {viewerMode === "canvas" ? "Browser View" : "Rendered View"}
           </button>
           <button
             type="button"
@@ -224,9 +239,19 @@ export default function PDFReaderClient({ comic }) {
 
       {error ? (
         <div style={s.notice}>
-          <h2 style={s.noticeTitle}>Could not render the PDF</h2>
+          <h2 style={s.noticeTitle}>{isNativeRuntime ? "Could not open the native reader" : "Could not render the PDF"}</h2>
           <p style={s.noticeText}>{error}</p>
           <button type="button" style={s.noticeButton} onClick={openNativePdf}>Open in Viewer</button>
+        </div>
+      ) : isNativeRuntime ? (
+        <div style={s.notice}>
+          <h2 style={s.noticeTitle}>{openingNative ? "Opening native reader..." : "Native PDF reader"}</h2>
+          <p style={s.noticeText}>
+            PDFs open with the device PDF viewer in the mobile app. Use the button below if it does not reopen automatically.
+          </p>
+          <button type="button" style={s.noticeButton} onClick={openNativePdf} disabled={openingNative}>
+            {openingNative ? "Opening..." : "Open PDF"}
+          </button>
         </div>
       ) : viewerMode === "native" ? (
         <div style={s.nativeWrap}>

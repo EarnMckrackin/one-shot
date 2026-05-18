@@ -2,17 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { getLocalPdfUrl } from "../../../../../lib/local-pdf-store";
+import { getLocalPdf } from "../../../../../lib/local-pdf-store";
 
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
+  const canvasRefs = useRef(new Map());
   const renderRunRef = useRef(0);
   const [pageCount, setPageCount] = useState(0);
   const [renderedPage, setRenderedPage] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfBytes, setPdfBytes] = useState(null);
   const [sourceLabel, setSourceLabel] = useState("");
+  const [layoutMode, setLayoutMode] = useState("single");
 
   const title = useMemo(() => {
     return `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`;
@@ -20,35 +23,57 @@ export default function PDFReaderClient({ comic }) {
 
   useEffect(() => {
     let active = true;
+    let localUrl = "";
 
     async function resolvePdf() {
       setError("");
-      const local = await getLocalPdfUrl(comic.id).catch(() => null);
+      setPdfBytes(null);
+      setPageCount(0);
+      setRenderedPage(0);
+      const local = await getLocalPdf(comic.id).catch(() => null);
       if (!active) return;
-      if (local?.url) {
-        setPdfUrl(local.url);
+      if (local?.blob) {
+        const url = URL.createObjectURL(local.blob);
+        localUrl = url;
+        const bytes = new Uint8Array(await local.blob.arrayBuffer());
+        if (!active) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setPdfUrl(url);
+        setPdfBytes(bytes);
         setSourceLabel("Device");
         return;
       }
       if (comic.drive_file_id) {
-        setPdfUrl(`/api/google/pdf/${comic.id}`);
+        const url = `/api/google/pdf/${comic.id}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Could not load Google Drive PDF. HTTP ${res.status}.`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (!active) return;
+        setPdfUrl(url);
+        setPdfBytes(bytes);
         setSourceLabel("Google Drive");
         return;
       }
       setPdfUrl("");
+      setPdfBytes(null);
       setSourceLabel("");
       setError("This PDF is not stored on this device. Add or replace the PDF from the comic detail page.");
     }
 
-    resolvePdf();
+    resolvePdf().catch((err) => {
+      if (active) setError(err?.message || "Unable to load this PDF.");
+    });
 
     return () => {
       active = false;
+      if (localUrl) URL.revokeObjectURL(localUrl);
     };
   }, [comic.id, comic.drive_file_id]);
 
   useEffect(() => {
-    if (!pdfUrl) return undefined;
+    if (!pdfBytes) return undefined;
     let cancelled = false;
     const renderRun = renderRunRef.current + 1;
     renderRunRef.current = renderRun;
@@ -64,13 +89,16 @@ export default function PDFReaderClient({ comic }) {
           import.meta.url
         ).toString();
 
-        const pdf = await pdfjs.getDocument({ url: pdfUrl }).promise;
+        const pdf = await pdfjs.getDocument({ data: pdfBytes.slice() }).promise;
         if (cancelled || renderRunRef.current !== renderRun) return;
 
         setPageCount(pdf.numPages);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await waitForCanvases(canvasRefs, pdf.numPages);
 
         const availableWidth = Math.min(containerRef.current?.clientWidth || 360, 980);
+        const pageTargetWidth = layoutMode === "spread"
+          ? Math.max(150, Math.floor((availableWidth - 18) / 2))
+          : availableWidth;
         const deviceScale = window.devicePixelRatio || 1;
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -78,9 +106,9 @@ export default function PDFReaderClient({ comic }) {
 
           const page = await pdf.getPage(pageNumber);
           const baseViewport = page.getViewport({ scale: 1 });
-          const scale = (availableWidth / baseViewport.width) * zoom;
+          const scale = (pageTargetWidth / baseViewport.width) * zoom;
           const viewport = page.getViewport({ scale });
-          const canvas = document.getElementById(`pdf-page-${pageNumber}`);
+          const canvas = canvasRefs.current.get(pageNumber);
 
           if (!canvas) continue;
 
@@ -107,7 +135,7 @@ export default function PDFReaderClient({ comic }) {
     return () => {
       cancelled = true;
     };
-  }, [pdfUrl, zoom]);
+  }, [pdfBytes, zoom, layoutMode]);
 
   return (
     <div style={s.page}>
@@ -122,6 +150,13 @@ export default function PDFReaderClient({ comic }) {
           <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.7, z - 0.15))}>-</button>
           <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
           <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(1.8, z + 0.15))}>+</button>
+          <button
+            type="button"
+            style={{ ...s.layoutBtn, ...(layoutMode === "spread" ? s.layoutBtnActive : {}) }}
+            onClick={() => setLayoutMode((mode) => mode === "single" ? "spread" : "single")}
+          >
+            {layoutMode === "single" ? "Side by Side" : "Single Page"}
+          </button>
           {pdfUrl && <a href={pdfUrl} style={s.download}>Open file</a>}
         </div>
       </div>
@@ -137,15 +172,37 @@ export default function PDFReaderClient({ comic }) {
           <p style={s.progress}>
             {pageCount ? `Rendered ${renderedPage} of ${pageCount} pages` : "Loading PDF..."}
           </p>
-          <div ref={containerRef} style={s.reader}>
+          <div ref={containerRef} style={{ ...s.reader, ...(layoutMode === "spread" ? s.readerSpread : {}) }}>
             {Array.from({ length: pageCount }, (_, index) => (
-              <canvas key={index + 1} id={`pdf-page-${index + 1}`} style={s.canvas} />
+              <canvas
+                key={index + 1}
+                ref={(node) => {
+                  if (node) canvasRefs.current.set(index + 1, node);
+                  else canvasRefs.current.delete(index + 1);
+                }}
+                style={s.canvas}
+              />
             ))}
           </div>
         </>
       )}
     </div>
   );
+}
+
+function waitForCanvases(canvasRefs, pageCount) {
+  return new Promise((resolve) => {
+    let attempts = 0;
+    function check() {
+      attempts += 1;
+      if (canvasRefs.current.size >= pageCount || attempts > 30) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(check);
+    }
+    requestAnimationFrame(check);
+  });
 }
 
 const s = {
@@ -202,6 +259,23 @@ const s = {
     fontWeight: 800,
   },
   zoom: { minWidth: 46, textAlign: "center", color: "var(--text-soft)", fontSize: 12 },
+  layoutBtn: {
+    minHeight: 34,
+    padding: "0 10px",
+    border: "2px solid var(--ink-000)",
+    borderRadius: 8,
+    background: "var(--bg-card)",
+    color: "var(--text)",
+    boxShadow: "2px 2px 0 var(--ink-000)",
+    fontFamily: "var(--font-burst)",
+    fontSize: 12,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  },
+  layoutBtnActive: {
+    background: "var(--hero-cyan)",
+    color: "var(--ink-000)",
+  },
   download: {
     display: "inline-flex",
     alignItems: "center",
@@ -230,6 +304,12 @@ const s = {
     alignItems: "center",
     gap: 18,
     paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))",
+  },
+  readerSpread: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    flexWrap: "wrap",
   },
   canvas: {
     maxWidth: "100%",

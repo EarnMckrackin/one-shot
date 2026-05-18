@@ -112,11 +112,8 @@ export default function PDFReaderClient({ comic }) {
       setRenderedPage(0);
 
       try {
+        installPdfJsPolyfills();
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/legacy/build/pdf.worker.mjs",
-          import.meta.url
-        ).toString();
 
         const pdf = await pdfjs.getDocument({
           data: pdfBytes.slice(),
@@ -263,6 +260,20 @@ function waitForCanvas(canvasRef) {
     }
     requestAnimationFrame(check);
   });
+}
+
+function installPdfJsPolyfills() {
+  if (typeof Promise.withResolvers !== "function") {
+    Promise.withResolvers = function withResolvers() {
+      let resolve;
+      let reject;
+      const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+  }
 }
 
 async function renderPageToCanvas(page, canvas, viewport, deviceScale) {

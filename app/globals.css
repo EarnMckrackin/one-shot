@@ -87,6 +87,11 @@
   --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
   --space-12: 48px; --space-16: 64px;
 
+  /* CONTENT WIDTHS */
+  --content-max-sm: min(100%, clamp(680px, 86vw, 960px));
+  --content-max-md: min(100%, clamp(760px, 88vw, 1120px));
+  --content-max-lg: min(100%, clamp(900px, 92vw, 1360px));
+
   /* RADII */
   --radius-xs:   4px;
   --radius-sm:   6px;

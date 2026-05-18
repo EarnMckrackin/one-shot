@@ -170,7 +170,7 @@ function Stat({ label, val, accent }) {
 }
 
 const s = {
-  page:      { maxWidth: 760 },
+  page:      { maxWidth: "var(--content-max-md)" },
   back:      { color: C.textFaint, fontSize: 14, display: "inline-block", marginBottom: 20 },
   title:     { fontSize: 30, fontFamily: "Georgia, serif", fontWeight: 700, marginBottom: 6 },
   desc:      { color: C.textSoft, fontSize: 14, marginBottom: 20, lineHeight: 1.6 },

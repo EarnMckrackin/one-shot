@@ -141,7 +141,7 @@ export default function GapsClient() {
 }
 
 const s = {
-  page:        { maxWidth: 760 },
+  page:        { maxWidth: "var(--content-max-md)" },
   header:      { marginBottom: 20 },
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:         { color: "var(--text-faint)", fontSize: 14 },
@@ -156,7 +156,7 @@ const s = {
   seriesMeta:  { color: "var(--text-faint)", fontSize: 12 },
   gapCount:    { color: "var(--accent)", fontWeight: 600 },
   progressWrap:{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
-  progressBar: { width: 80, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" },
+  progressBar: { width: "clamp(80px, 18vw, 180px)", height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" },
   progressFill:{ height: "100%", background: "var(--hero-cyan)", borderRadius: 3, transition: "width 0.3s" },
   pct:         { color: "var(--text-faint)", fontSize: 11, width: 32, textAlign: "right" },
   gapList:     { padding: "12px 18px 16px", borderTop: "1px solid var(--border)" },

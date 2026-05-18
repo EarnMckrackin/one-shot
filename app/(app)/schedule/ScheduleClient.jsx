@@ -174,7 +174,7 @@ export default function ScheduleClient() {
 }
 
 const s = {
-  page:          { maxWidth: 680 },
+  page:          { maxWidth: "var(--content-max-sm)" },
   header:        { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 },
   title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
   progress:      { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)", display: "block", marginTop: 2 },
@@ -186,7 +186,7 @@ const s = {
 
   weekNav:       { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   weekLabel:     { color: "var(--text-soft)", fontSize: 13 },
-  dayStrip:      { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 20 },
+  dayStrip:      { display: "grid", gridTemplateColumns: "repeat(7, minmax(64px, 1fr))", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 },
   dayBtn:        { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 10, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, boxShadow: "2px 2px 0 var(--ink-000)" },
   dayBtnActive:  { background: "var(--accent)", borderColor: "var(--ink-000)", backgroundImage: "var(--hatch-dark)" },
   dayLabel:      { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, fontFamily: "var(--font-display)", letterSpacing: "0.04em" },

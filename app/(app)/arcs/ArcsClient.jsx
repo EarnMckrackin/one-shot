@@ -125,13 +125,13 @@ function ArcGrid({ arcs, onDelete }) {
 }
 
 const s = {
-  page:        { maxWidth: 800 },
+  page:        { maxWidth: "var(--content-max-md)" },
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:         { color: "var(--text-faint)", fontSize: 14, marginBottom: 24 },
   createRow:   { display: "flex", gap: 10, marginBottom: 32 },
   msg:         { color: "var(--text-soft)", padding: "40px 0" },
   sectionHead: { color: "var(--text-faint)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
-  grid:        { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 },
+  grid:        { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 12 },
   arcCard:     { background: "var(--bg-card)", backgroundImage: "var(--hatch-dark)", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 10 },
   arcLink:     { display: "flex", flexDirection: "column", gap: 8, flex: 1 },
   arcTop:      { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },

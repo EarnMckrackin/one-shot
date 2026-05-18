@@ -138,7 +138,7 @@ export default function PullListClient() {
 }
 
 const s = {
-  page:        { maxWidth: 640 },
+  page:        { maxWidth: "var(--content-max-sm)" },
   title:       { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:         { color: "var(--text-faint)", fontSize: 14, marginBottom: 24 },
   searchRow:   { display: "flex", gap: 10, marginBottom: 20 },

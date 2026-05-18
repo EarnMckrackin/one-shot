@@ -450,10 +450,10 @@ function formatDate(date) {
 }
 
 const s = {
-  page:          { maxWidth: 800 },
+  page:          { maxWidth: "var(--content-max-md)" },
   back:          { color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 22 },
   hero:          { display: "flex", gap: 28, marginBottom: 32, flexWrap: "wrap" },
-  coverWrap:     { flexShrink: 0, width: 180, position: "relative" },
+  coverWrap:     { flexShrink: 0, width: "clamp(180px, 22vw, 260px)", position: "relative" },
   cover:         { width: "100%", aspectRatio: "2/3", objectFit: "cover", borderRadius: 12, display: "block", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   coverPlaceholder: { background: "var(--bg-card)", color: "var(--text-faint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, borderRadius: 12 },
   meta:          { flex: 1, minWidth: 240 },
@@ -499,7 +499,7 @@ const s = {
   pickerClose:   { background: "none", border: "none", color: "var(--text-faint)", fontSize: 18, cursor: "pointer", padding: "0 4px" },
   pickerHint:    { color: "var(--text-faint)", fontSize: 13, marginBottom: 16 },
 
-  coverGrid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 10, marginBottom: 16 },
+  coverGrid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10, marginBottom: 16 },
   coverGridItem: { background: "none", border: "2px solid transparent", borderRadius: 8, padding: 0, cursor: "pointer", overflow: "hidden", transition: "border-color 120ms" },
   coverGridImg:  { width: "100%", aspectRatio: "2/3", objectFit: "cover", display: "block", borderRadius: 6 },
 

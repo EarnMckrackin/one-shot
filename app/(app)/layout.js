@@ -10,7 +10,7 @@ export default async function AppLayout({ children }) {
   return (
     <div style={{ minHeight: "100vh" }}>
       <Nav />
-      <main className="main-content" style={{ padding: "24px 20px" }}>
+      <main className="main-content" style={{ padding: "clamp(18px, 3vw, 36px) clamp(16px, 3vw, 40px)" }}>
         {children}
       </main>
     </div>

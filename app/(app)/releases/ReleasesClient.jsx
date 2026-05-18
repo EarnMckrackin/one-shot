@@ -377,7 +377,7 @@ function libraryKey(comic) {
 }
 
 const s = {
-  page:           { maxWidth: 720 },
+  page:           { maxWidth: "var(--content-max-md)" },
   header:         { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16 },
   title:          { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" },
   date:           { color: "var(--text-faint)", fontSize: 14, fontFamily: "var(--font-mono)" },

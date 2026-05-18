@@ -147,7 +147,7 @@ export default function CompassClient() {
 }
 
 const s = {
-  page:          { maxWidth: 760, display: "flex", flexDirection: "column", height: "calc(100vh - 80px)" },
+  page:          { maxWidth: "var(--content-max-md)", display: "flex", flexDirection: "column", height: "calc(100dvh - clamp(88px, 12vh, 124px))" },
   title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:           { color: "var(--text-faint)", fontSize: 14, marginBottom: 20 },
 
@@ -159,11 +159,11 @@ const s = {
 
   chatBox:       { flex: 1, overflowY: "auto", background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16, marginBottom: 12, boxShadow: "4px 4px 0 var(--ink-000)" },
 
-  empty:         { margin: "auto", textAlign: "center", maxWidth: 420 },
+  empty:         { margin: "auto", textAlign: "center", maxWidth: "min(620px, 100%)" },
   emptyHead:     { color: "var(--text-soft)", fontSize: 24, marginBottom: 12, fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.04em" },
   emptySub:      { color: "var(--text-faint)", fontSize: 13, lineHeight: 1.6, marginBottom: 20 },
   starters:      { display: "flex", flexDirection: "column", gap: 10, alignItems: "center" },
-  starterBtn:    { background: "var(--bg-card)", border: "1.5px solid var(--ink-000)", borderRadius: 10, padding: "10px 18px", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", maxWidth: 400, width: "100%", textAlign: "left", boxShadow: "2px 2px 0 var(--ink-000)" },
+  starterBtn:    { background: "var(--bg-card)", border: "1.5px solid var(--ink-000)", borderRadius: 10, padding: "10px 18px", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", maxWidth: "min(560px, 100%)", width: "100%", textAlign: "left", boxShadow: "2px 2px 0 var(--ink-000)" },
 
   bubble:        { display: "flex", flexDirection: "column", gap: 6, maxWidth: "85%" },
   bubbleUser:    { alignSelf: "flex-end", background: "var(--accent)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", borderRadius: "14px 14px 4px 14px", padding: "12px 16px" },

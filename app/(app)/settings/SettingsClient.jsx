@@ -86,7 +86,7 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
 }
 
 const s = {
-  page:         { maxWidth: 560 },
+  page:         { maxWidth: "var(--content-max-sm)" },
   title:        { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 28 },
   flash:        { borderRadius: 10, padding: "12px 16px", marginBottom: 24, fontSize: 14, fontWeight: 600 },
   flashSuccess: { background: "rgba(6,214,160,0.12)", color: "var(--hero-cyan)", border: "1px solid var(--hero-cyan)" },

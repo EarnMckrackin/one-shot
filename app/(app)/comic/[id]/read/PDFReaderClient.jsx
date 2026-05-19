@@ -8,10 +8,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = "";
 
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
@@ -187,6 +184,7 @@ export default function PDFReaderClient({ comic }) {
             {pdfUrl && (
               <Document
                 file={pdfUrl}
+                options={{ disableWorker: true, isEvalSupported: false, useSystemFonts: true }}
                 onLoadSuccess={({ numPages }) => {
                   setPageCount(numPages);
                   setCurrentPage((page) => Math.max(1, Math.min(page, numPages)));
@@ -196,9 +194,10 @@ export default function PDFReaderClient({ comic }) {
                 loading={<p style={s.noticeText}>Loading PDF document...</p>}
               >
                 <Page
+                  key={`page-${currentPage}-${Math.floor(containerWidth)}-${zoom}`}
                   pageNumber={currentPage}
                   width={Math.floor(containerWidth * zoom)}
-                  renderMode={Capacitor.getPlatform() === "web" ? "canvas" : "svg"}
+                  renderMode="canvas"
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
                   onRenderError={(err) => setError(err?.message || "Unable to render this PDF page.")}

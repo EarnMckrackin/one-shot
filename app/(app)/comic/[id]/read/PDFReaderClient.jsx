@@ -8,7 +8,10 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mj
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
 
-GlobalWorkerOptions.workerSrc = "";
+GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/legacy/build/pdf.worker.mjs",
+  import.meta.url
+).toString();
 
 export default function PDFReaderClient({ comic }) {
   const canvasRef = useRef(null);
@@ -109,11 +112,9 @@ export default function PDFReaderClient({ comic }) {
       try {
         const loadingTask = getDocument({
           url: pdfUrl,
-          disableWorker: true,
           isEvalSupported: false,
           useSystemFonts: true,
           isOffscreenCanvasSupported: false,
-          useWorkerFetch: false,
         });
         const pdfDoc = await loadingTask.promise;
         if (!active) {

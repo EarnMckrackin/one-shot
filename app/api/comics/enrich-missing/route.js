@@ -1,13 +1,43 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase";
 import { enrichComicIssue } from "../../../../lib/comic-enrichment";
+import { searchSeries as cvSearchSeries } from "../../../../lib/comicvine";
+
+const BAD_PUBLISHER = /^(unknown|n\/a|various|tbd)$/i;
 
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Step 1: copy publisher_id from series onto comics that are missing it
+  // Step 1: Search ComicVine by series name for each series missing a publisher.
+  // One API call per series (not per comic) — same batch-lookup pattern as releases page.
+  const { data: seriesNeedingPub } = await supabase
+    .from("series")
+    .select("id, name, comicvine_id")
+    .eq("user_id", user.id)
+    .is("publisher_id", null);
+
+  let seriesPubsFound = 0;
+  for (const ser of (seriesNeedingPub ?? []).slice(0, 60)) {
+    try {
+      const cvResults = await cvSearchSeries(ser.name);
+      const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const best = cvResults.find(r => norm(r.name) === norm(ser.name)) ?? cvResults[0];
+      const publisher = best?.publisher?.trim();
+      if (!publisher || BAD_PUBLISHER.test(publisher)) continue;
+
+      const publisherId = await upsertPublisher(supabase, publisher, user.id);
+      if (!publisherId) continue;
+
+      const update = { publisher_id: publisherId };
+      if (best.comicvine_id && !ser.comicvine_id) update.comicvine_id = best.comicvine_id;
+      await supabase.from("series").update(update).eq("id", ser.id);
+      seriesPubsFound++;
+    } catch { /* ignore per-series errors, continue */ }
+  }
+
+  // Step 2: Copy publisher_id from series down to comics missing it
   const { data: missingPub } = await supabase
     .from("comics")
     .select("id, series:series_id(publisher_id)")
@@ -20,19 +50,18 @@ export async function POST() {
     .map(c => supabase.from("comics").update({ publisher_id: c.series.publisher_id }).eq("id", c.id).eq("user_id", user.id));
   await Promise.allSettled(pubBackfills);
 
-  // Step 2: enrich comics missing description, release_date, publisher, or with a future (cover) date
+  // Step 3: Per-comic enrichment for description / release_date (limited batch)
   const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data: comics, error } = await supabase
     .from("comics")
     .select("id, series_id, publisher_id, title, issue_number, description, cover_url, release_date, writers, artists, characters, series:series_id(id, name, publisher_id), publisher:publisher_id(name)")
     .eq("user_id", user.id)
-    .or(`description.is.null,description.eq.,release_date.is.null,release_date.gt.${futureDate},publisher_id.is.null`);
+    .or(`description.is.null,description.eq.,release_date.is.null,release_date.gt.${futureDate}`);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let updated = 0;
-
-  for (const comic of comics ?? []) {
+  for (const comic of (comics ?? []).slice(0, 40)) {
     const enriched = await enrichComicIssue({
       ...comic,
       series_name: comic.series?.name,
@@ -42,10 +71,9 @@ export async function POST() {
 
     const patch = buildPatch(comic, enriched);
 
-    // Publisher upsert: find or create publisher record, then link to comic and series
+    // Publisher fallback: if series search in Step 1 missed this comic's series
     const publisherName = enriched.publisher?.trim();
-    const badPublisher = !publisherName || /^(unknown|n\/a|various|tbd)$/i.test(publisherName);
-    if (!badPublisher && !comic.publisher_id) {
+    if (publisherName && !BAD_PUBLISHER.test(publisherName) && !comic.publisher_id) {
       const publisherId = await upsertPublisher(supabase, publisherName, user.id);
       if (publisherId) {
         patch.publisher_id = publisherId;
@@ -66,7 +94,7 @@ export async function POST() {
     if (!updateError) updated += 1;
   }
 
-  return NextResponse.json({ checked: comics?.length ?? 0, updated, pubBackfilled: pubBackfills.length });
+  return NextResponse.json({ seriesPubsFound, pubBackfilled: pubBackfills.length, checked: comics?.length ?? 0, updated });
 }
 
 async function upsertPublisher(supabase, name, userId) {

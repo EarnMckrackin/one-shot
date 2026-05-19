@@ -29,6 +29,8 @@ export default function ReleasesClient() {
   const [source, setSource]           = useState(null);
   const [warning, setWarning]         = useState(null);
   const [cacheInfo, setCacheInfo]     = useState(null);
+  const [pubFilter, setPubFilter]     = useState("");
+  const [seriesFilter, setSeriesFilter] = useState("");
 
   const wednesday = getWednesday(weekOffset);
   const weekLabel = formatWeekLabel(wednesday);
@@ -198,9 +200,9 @@ export default function ReleasesClient() {
           title:        details?.title || release.title || series_name || "Untitled",
           issue_number: details?.issue_number ?? release.issue_number ?? null,
           comicvine_id: details?.comicvine_id ?? release.cv_id ?? release.metron_id ?? null,
-          cover_url:    details?.cover_url || cover_url,
+          cover_url:    cover_url || details?.cover_url,
           description:  details?.description ?? null,
-          release_date: details?.release_date ?? release.store_date ?? release.cover_date ?? wednesday,
+          release_date: release.store_date ?? wednesday ?? details?.release_date ?? release.cover_date,
           writers:      details?.writers ?? null,
           artists:      details?.artists ?? null,
           characters:   details?.characters ?? null,
@@ -234,8 +236,19 @@ export default function ReleasesClient() {
     }
   }
 
-  const pullReleases  = releases.filter(r => pullVolumeSet.has(r.cv_id));
-  const otherReleases = releases.filter(r => !pullVolumeSet.has(r.cv_id));
+  const publishers = [...new Set(releases.map(r => r.publisher).filter(Boolean))].sort();
+  const seriesNames = [...new Set(releases.map(r => r.series_name).filter(Boolean))].sort();
+
+  function applyFilters(list) {
+    return list.filter(r => {
+      if (pubFilter && r.publisher !== pubFilter) return false;
+      if (seriesFilter && r.series_name !== seriesFilter) return false;
+      return true;
+    });
+  }
+
+  const pullReleases  = applyFilters(releases.filter(r => pullVolumeSet.has(r.cv_id)));
+  const otherReleases = applyFilters(releases.filter(r => !pullVolumeSet.has(r.cv_id)));
   const weeklySpend   = pullReleases.reduce((sum, r) => sum + (r.price ?? DEFAULT_PRICE), 0);
 
   return (
@@ -250,6 +263,40 @@ export default function ReleasesClient() {
         <InkButton variant="ghost" size="sm" onClick={() => setOffset(0)}>This week</InkButton>
         <InkButton variant="ghost" size="sm" onClick={() => setOffset(o => o + 1)}>Next week →</InkButton>
       </div>
+
+      {!loading && releases.length > 0 && (
+        <div style={s.filterRow}>
+          <label style={s.filterLabel} htmlFor="rel-pub-filter">Publisher</label>
+          <select
+            id="rel-pub-filter"
+            className="ink-input"
+            value={pubFilter}
+            onChange={e => { setPubFilter(e.target.value); setSeriesFilter(""); }}
+            style={s.filterSelect}
+          >
+            <option value="">All publishers</option>
+            {publishers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          <label style={s.filterLabel} htmlFor="rel-series-filter">Series</label>
+          <select
+            id="rel-series-filter"
+            className="ink-input"
+            value={seriesFilter}
+            onChange={e => setSeriesFilter(e.target.value)}
+            style={s.filterSelect}
+          >
+            <option value="">All series</option>
+            {seriesNames.map(name => <option key={name} value={name}>{name}</option>)}
+          </select>
+
+          {(pubFilter || seriesFilter) && (
+            <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); }}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {loading && <p style={s.msg}>Loading releases…</p>}
       {error   && <p style={{ ...s.msg, color: "var(--accent)" }}>{error}</p>}
@@ -422,9 +469,13 @@ const s = {
   sectionHeadRow: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 },
   sectionHead:    { color: "var(--text)", fontSize: 22, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "var(--font-display)", paddingBottom: 6, borderBottom: "2px solid var(--ink-000)" },
   weeklySpend:    { color: "var(--ink-000)", background: "var(--hero-gold)", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-burst)", padding: "4px 10px", border: "1px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", transform: "rotate(-4deg)" },
+  filterRow:      { display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" },
+  filterLabel:    { color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
+  filterSelect:   { width: 180, minHeight: 38 },
+  clearBtn:       { minHeight: 38, padding: "0 12px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", fontFamily: "var(--font-burst)", letterSpacing: "0.08em", textTransform: "uppercase", boxShadow: "2px 2px 0 var(--ink-000)", cursor: "pointer" },
   row:            { display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" },
   rowHighlight:   { background: "var(--bg-surface)", backgroundImage: "var(--halftone-dots-gold)", backgroundSize: "var(--halftone-size)", borderRadius: 10, padding: "10px 12px", marginBottom: 2, borderBottom: "none", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
-  cover:          { width: "clamp(44px, 6vw, 72px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
+  cover:          { width: "clamp(60px, 9vw, 96px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
   releaseTitle:   { color: "var(--text)", fontSize: 14, fontWeight: 600 },
   releaseMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
   price:          { color: "var(--text-soft)", fontSize: 12, fontWeight: 600, flexShrink: 0 },

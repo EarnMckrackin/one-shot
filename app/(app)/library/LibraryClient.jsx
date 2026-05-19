@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
-import { localConnectionState, readLocalLibrary, writeLocalLibrary } from "../../../lib/local-data-store";
+import { localConnectionState, readLocalLibrary, writeLocalLibrary, readLibraryPrefs, writeLibraryPrefs } from "../../../lib/local-data-store";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
 const SORTS = [
@@ -20,13 +20,15 @@ export default function LibraryClient({ publishers, allSeries }) {
   const [comics, setComics]     = useState([]);
   const [releaseOptions, setReleaseOptions] = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [pubFilter, setPubFilter] = useState("");
-  const [seriesFilter, setSeriesFilter] = useState("");
-  const [releaseFilter, setReleaseFilter] = useState("");
-  const [formatFilter, setFormatFilter] = useState("Both");
-  const [sortBy, setSortBy]     = useState("created_desc");
   const [cacheInfo, setCacheInfo] = useState(null);
   const [connectionState, setConnectionState] = useState("unknown");
+
+  const [savedPrefs] = useState(() => readLibraryPrefs());
+  const [pubFilter, setPubFilter]       = useState(savedPrefs.pubFilter ?? "");
+  const [seriesFilter, setSeriesFilter] = useState(savedPrefs.seriesFilter ?? "");
+  const [releaseFilter, setReleaseFilter] = useState(savedPrefs.releaseFilter ?? "");
+  const [formatFilter, setFormatFilter] = useState(savedPrefs.formatFilter ?? "Both");
+  const [sortBy, setSortBy]             = useState(savedPrefs.sortBy ?? "created_desc");
 
   useEffect(() => {
     const publisher = searchParams.get("publisher") || "";
@@ -83,6 +85,10 @@ export default function LibraryClient({ publishers, allSeries }) {
   useEffect(() => {
     fetch("/api/comics/enrich-missing", { method: "POST" }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    writeLibraryPrefs({ pubFilter, seriesFilter, releaseFilter, formatFilter, sortBy });
+  }, [pubFilter, seriesFilter, releaseFilter, formatFilter, sortBy]);
 
   const locallyFiltered = comics.filter((comic) => {
     if (search && !matchesSearch(comic, search)) return false;

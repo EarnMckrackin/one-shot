@@ -3,12 +3,29 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 
+const normalize = (str) => (str ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function getWednesday(offset = 0) {
+  const d = new Date();
+  const anchor = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+  const day = anchor.getDay();
+  const daysSinceWed = (day - 3 + 7) % 7;
+  anchor.setDate(anchor.getDate() - daysSinceWed + offset * 7);
+  return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}-${String(anchor.getDate()).padStart(2, "0")}`;
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(`${dateStr}T12:00:00`));
+}
+
 export default function PullListClient() {
   const [items, setItems]         = useState([]);
   const [query, setQuery]         = useState("");
   const [results, setResults]     = useState([]);
   const [searching, setSearching] = useState(false);
   const [adding, setAdding]       = useState(null);
+  const [upcomingMap, setUpcomingMap] = useState({});
 
   async function loadList() {
     const { data } = await supabase
@@ -20,6 +37,30 @@ export default function PullListClient() {
   }
 
   useEffect(() => { loadList(); }, []);
+
+  useEffect(() => {
+    async function fetchUpcoming() {
+      const thisWed = getWednesday(0);
+      const nextWed = getWednesday(1);
+      try {
+        const [thisRes, nextRes] = await Promise.all([
+          fetch(`/api/releases?date=${thisWed}`).then(r => r.json()),
+          fetch(`/api/releases?date=${nextWed}`).then(r => r.json()),
+        ]);
+        const map = {};
+        for (const r of thisRes.releases ?? []) {
+          const key = normalize(r.series_name);
+          if (key) map[key] = { date: r.store_date ?? thisWed, label: "This week" };
+        }
+        for (const r of nextRes.releases ?? []) {
+          const key = normalize(r.series_name);
+          if (key && !map[key]) map[key] = { date: r.store_date ?? nextWed, label: "Next week" };
+        }
+        setUpcomingMap(map);
+      } catch {}
+    }
+    fetchUpcoming();
+  }, []);
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -114,19 +155,28 @@ export default function PullListClient() {
       )}
 
       <div style={s.list}>
-        {items.map((item) => (
-          <div key={item.id} style={s.pullRow}>
-            {item.series?.cover_url
-              ? <img src={item.series.cover_url} alt={item.series.name} style={s.seriesCover} loading="lazy" />
-              : <div style={{ ...s.seriesCover, background: "var(--bg-card)" }} />
-            }
-            <div style={{ flex: 1 }}>
-              <p style={s.seriesName}>{item.series?.name}</p>
-              <p style={s.publisherName}>{item.series?.publisher?.name}</p>
+        {items.map((item) => {
+          const upcoming = upcomingMap[normalize(item.series?.name)];
+          return (
+            <div key={item.id} style={s.pullRow}>
+              {item.series?.cover_url
+                ? <img src={item.series.cover_url} alt={item.series.name} style={s.seriesCover} loading="lazy" />
+                : <div style={{ ...s.seriesCover, background: "var(--bg-card)" }} />
+              }
+              <div style={{ flex: 1 }}>
+                <p style={s.seriesName}>{item.series?.name}</p>
+                <p style={s.publisherName}>{item.series?.publisher?.name}</p>
+                {upcoming && (
+                  <p style={s.upcomingDate}>
+                    <span style={s.upcomingDot} />
+                    {upcoming.label}: {formatShortDate(upcoming.date)}
+                  </p>
+                )}
+              </div>
+              <button style={s.removeBtn} onClick={() => handleRemove(item.series_id)}>✕</button>
             </div>
-            <button style={s.removeBtn} onClick={() => handleRemove(item.series_id)}>✕</button>
-          </div>
-        ))}
+          );
+        })}
         {items.length === 0 && (
           <p style={{ color: "var(--text-soft)", padding: "40px 0", textAlign: "center" }}>
             Search for a series above to start your pull list
@@ -153,7 +203,9 @@ const s = {
   list:        { display: "flex", flexDirection: "column" },
   pullRow:     { display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderBottom: "1px solid var(--border)" },
   seriesCover: { width: "clamp(44px, 6vw, 72px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },
-  seriesName:  { color: "var(--text)", fontWeight: 600, fontSize: 15 },
+  seriesName:    { color: "var(--text)", fontWeight: 600, fontSize: 15 },
   publisherName: { color: "var(--text-faint)", fontSize: 12, marginTop: 2 },
-  removeBtn:   { background: "none", color: "var(--text-faint)", fontSize: 16, cursor: "pointer", padding: "4px 8px" },
+  upcomingDate:  { display: "flex", alignItems: "center", gap: 5, color: "var(--hero-gold)", fontSize: 11, fontWeight: 600, fontFamily: "var(--font-burst)", letterSpacing: "0.05em", textTransform: "uppercase", marginTop: 4 },
+  upcomingDot:   { display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--hero-gold)", flexShrink: 0 },
+  removeBtn:     { background: "none", color: "var(--text-faint)", fontSize: 16, cursor: "pointer", padding: "4px 8px" },
 };

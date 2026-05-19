@@ -20,12 +20,13 @@ export async function POST() {
     .map(c => supabase.from("comics").update({ publisher_id: c.series.publisher_id }).eq("id", c.id).eq("user_id", user.id));
   await Promise.allSettled(pubBackfills);
 
-  // Step 2: enrich comics missing description OR release_date from external APIs
+  // Step 2: enrich comics missing description, release_date, or with a future (cover) date
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data: comics, error } = await supabase
     .from("comics")
-    .select("id, title, issue_number, description, cover_url, release_date, writers, artists, characters, series:series_id(name), publisher:publisher_id(name)")
+    .select("id, series_id, publisher_id, title, issue_number, description, cover_url, release_date, writers, artists, characters, series:series_id(id, name, publisher_id), publisher:publisher_id(name)")
     .eq("user_id", user.id)
-    .or("description.is.null,description.eq.,release_date.is.null");
+    .or(`description.is.null,description.eq.,release_date.is.null,release_date.gt.${futureDate}`);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -40,6 +41,18 @@ export async function POST() {
     if (!enriched) continue;
 
     const patch = buildPatch(comic, enriched);
+
+    // Publisher upsert: find or create publisher record, then link to comic and series
+    if (enriched.publisher && !comic.publisher_id) {
+      const publisherId = await upsertPublisher(supabase, enriched.publisher);
+      if (publisherId) {
+        patch.publisher_id = publisherId;
+        if (comic.series_id && !comic.series?.publisher_id) {
+          await supabase.from("series").update({ publisher_id: publisherId }).eq("id", comic.series_id);
+        }
+      }
+    }
+
     if (Object.keys(patch).length === 0) continue;
 
     const { error: updateError } = await supabase
@@ -54,13 +67,36 @@ export async function POST() {
   return NextResponse.json({ checked: comics?.length ?? 0, updated, pubBackfilled: pubBackfills.length });
 }
 
+async function upsertPublisher(supabase, name) {
+  const { data: existing } = await supabase
+    .from("publishers")
+    .select("id")
+    .ilike("name", name)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: inserted } = await supabase
+    .from("publishers")
+    .insert({ name })
+    .select("id")
+    .single();
+  return inserted?.id ?? null;
+}
+
 function buildPatch(comic, enriched) {
   const patch = {};
   if (!comic.description && enriched.description) patch.description = enriched.description;
   if (!comic.cover_url && enriched.cover_url) patch.cover_url = enriched.cover_url;
-  if (!comic.release_date && enriched.release_date) patch.release_date = enriched.release_date;
+  if (looksLikeCoverDate(comic.release_date) && enriched.release_date) patch.release_date = enriched.release_date;
   if (!comic.writers?.length && enriched.writers?.length) patch.writers = enriched.writers;
   if (!comic.artists?.length && enriched.artists?.length) patch.artists = enriched.artists;
   if (!comic.characters?.length && enriched.characters?.length) patch.characters = enriched.characters;
   return patch;
+}
+
+function looksLikeCoverDate(dateStr) {
+  if (!dateStr) return true;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + 7);
+  return new Date(dateStr) > cutoff;
 }

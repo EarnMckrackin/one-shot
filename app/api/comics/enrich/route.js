@@ -43,10 +43,17 @@ function buildPatch(comic, enriched) {
   const patch = {};
   if (!comic.description && enriched.description) patch.description = enriched.description;
   if (!comic.cover_url && enriched.cover_url) patch.cover_url = enriched.cover_url;
-  if (!comic.release_date && enriched.release_date) patch.release_date = enriched.release_date;
+  if (looksLikeCoverDate(comic.release_date) && enriched.release_date) patch.release_date = enriched.release_date;
   if (!comic.writers?.length && enriched.writers?.length) patch.writers = enriched.writers;
   if (!comic.artists?.length && enriched.artists?.length) patch.artists = enriched.artists;
   if (!comic.characters?.length && enriched.characters?.length) patch.characters = enriched.characters;
   return patch;
+}
+
+function looksLikeCoverDate(dateStr) {
+  if (!dateStr) return true;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + 7);
+  return new Date(dateStr) > cutoff;
 }
 

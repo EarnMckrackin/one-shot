@@ -21,7 +21,6 @@ export default function PDFReaderClient({ comic }) {
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
-  const [pdfBytes, setPdfBytes] = useState(null);
   const [sourceLabel, setSourceLabel] = useState("");
   const [openingNative, setOpeningNative] = useState(false);
 
@@ -50,7 +49,6 @@ export default function PDFReaderClient({ comic }) {
 
     async function resolvePdf() {
       setError("");
-      setPdfBytes(null);
       setPdfUrl("");
       setSourceLabel("");
       setPageCount(0);
@@ -67,7 +65,6 @@ export default function PDFReaderClient({ comic }) {
           return;
         }
         setPdfUrl(url);
-        setPdfBytes(bytes);
         setSourceLabel("Device");
         return;
       }
@@ -86,7 +83,6 @@ export default function PDFReaderClient({ comic }) {
           return;
         }
         setPdfUrl(objectUrl);
-        setPdfBytes(new Uint8Array(buffer));
         setSourceLabel("Saved locally from Google Drive");
         return;
       }
@@ -188,9 +184,9 @@ export default function PDFReaderClient({ comic }) {
             {pageCount ? `Page ${currentPage} of ${pageCount}` : "Loading PDF..."}
           </p>
           <div ref={containerRef} style={s.reader}>
-            {pdfBytes && (
+            {pdfUrl && (
               <Document
-                file={{ data: pdfBytes }}
+                file={pdfUrl}
                 onLoadSuccess={({ numPages }) => {
                   setPageCount(numPages);
                   setCurrentPage((page) => Math.max(1, Math.min(page, numPages)));

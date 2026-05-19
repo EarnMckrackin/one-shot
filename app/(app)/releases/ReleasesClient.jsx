@@ -55,7 +55,7 @@ export default function ReleasesClient() {
     Promise.all([
       fetch(`/api/releases?date=${wednesday}`).then(r => r.json()),
       supabase.from("pull_list")
-        .select("series_id, series:series_id(name, comicvine_id)")
+        .select("series_id, series:series_id(name, comicvine_id, publisher:publisher_id(name))")
         .eq("active", true),
       supabase.from("comics")
         .select("id, title, issue_number, comicvine_id, series:series_id(name)"),
@@ -70,12 +70,20 @@ export default function ReleasesClient() {
       (pl ?? []).forEach(entry => {
         const sName = entry.series?.name;
         if (!sName) return;
+        const publisherName = entry.series?.publisher?.name ?? null;
         // Prefer exact comicvine_id match
         const cvMatch = releaseList.find(rel => rel.volume_cv_id && rel.volume_cv_id === entry.series.comicvine_id);
-        if (cvMatch) { map[cvMatch.cv_id] = entry.series_id; return; }
+        if (cvMatch) {
+          if (!cvMatch.publisher && publisherName) cvMatch.publisher = publisherName;
+          map[cvMatch.cv_id] = entry.series_id;
+          return;
+        }
         // Fall back to name match
         const nameMatch = releaseList.find(rel => normalize(rel.series_name) === normalize(sName));
-        if (nameMatch) map[nameMatch.cv_id] = entry.series_id;
+        if (nameMatch) {
+          if (!nameMatch.publisher && publisherName) nameMatch.publisher = publisherName;
+          map[nameMatch.cv_id] = entry.series_id;
+        }
       });
 
       setSeriesIdMap(map);

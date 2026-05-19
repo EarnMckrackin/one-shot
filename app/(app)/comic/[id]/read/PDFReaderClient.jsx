@@ -120,6 +120,7 @@ export default function PDFReaderClient({ comic }) {
           useSystemFonts: true,
           isOffscreenCanvasSupported: false,
           useWorkerFetch: false,
+          wasmUrl: "/wasm/",
         });
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("PDF load timed out — worker may have failed to start.")), 15000)

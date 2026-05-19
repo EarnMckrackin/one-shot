@@ -20,13 +20,13 @@ export async function POST() {
     .map(c => supabase.from("comics").update({ publisher_id: c.series.publisher_id }).eq("id", c.id).eq("user_id", user.id));
   await Promise.allSettled(pubBackfills);
 
-  // Step 2: enrich comics missing description, release_date, or with a future (cover) date
+  // Step 2: enrich comics missing description, release_date, publisher, or with a future (cover) date
   const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data: comics, error } = await supabase
     .from("comics")
     .select("id, series_id, publisher_id, title, issue_number, description, cover_url, release_date, writers, artists, characters, series:series_id(id, name, publisher_id), publisher:publisher_id(name)")
     .eq("user_id", user.id)
-    .or(`description.is.null,description.eq.,release_date.is.null,release_date.gt.${futureDate}`);
+    .or(`description.is.null,description.eq.,release_date.is.null,release_date.gt.${futureDate},publisher_id.is.null`);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -44,7 +44,7 @@ export async function POST() {
 
     // Publisher upsert: find or create publisher record, then link to comic and series
     if (enriched.publisher && !comic.publisher_id) {
-      const publisherId = await upsertPublisher(supabase, enriched.publisher);
+      const publisherId = await upsertPublisher(supabase, enriched.publisher, user.id);
       if (publisherId) {
         patch.publisher_id = publisherId;
         if (comic.series_id && !comic.series?.publisher_id) {
@@ -67,17 +67,18 @@ export async function POST() {
   return NextResponse.json({ checked: comics?.length ?? 0, updated, pubBackfilled: pubBackfills.length });
 }
 
-async function upsertPublisher(supabase, name) {
+async function upsertPublisher(supabase, name, userId) {
   const { data: existing } = await supabase
     .from("publishers")
     .select("id")
     .ilike("name", name)
+    .eq("user_id", userId)
     .maybeSingle();
   if (existing) return existing.id;
 
   const { data: inserted } = await supabase
     .from("publishers")
-    .insert({ name })
+    .insert({ name, user_id: userId })
     .select("id")
     .single();
   return inserted?.id ?? null;

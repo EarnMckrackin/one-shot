@@ -374,7 +374,7 @@ async function enrichRelease(release) {
 async function fetchLibraryComic(id) {
   const { data, error } = await supabase
     .from("comics")
-    .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, comicvine_id, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+    .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, comicvine_id, series:series_id(id, name, publisher:publisher_id(id, name)), publisher:publisher_id(id, name), reading_log(id)")
     .eq("id", id)
     .single();
   if (error) throw error;

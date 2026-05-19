@@ -55,7 +55,7 @@ export default function LibraryClient({ publishers, allSeries }) {
       }
       let q = supabase
         .from("comics")
-        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(id, name), publisher:publisher_id(id, name), reading_log(id)")
+        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(id, name, publisher:publisher_id(id, name)), publisher:publisher_id(id, name), reading_log(id)")
         .order("created_at", { ascending: false });
 
       const { data, error } = await q;
@@ -92,7 +92,8 @@ export default function LibraryClient({ publishers, allSeries }) {
 
   const locallyFiltered = comics.filter((comic) => {
     if (search && !matchesSearch(comic, search)) return false;
-    if (pubFilter && String(comic.publisher?.id) !== String(pubFilter)) return false;
+    const comicPubId = comic.publisher?.id ?? comic.series?.publisher?.id;
+    if (pubFilter && String(comicPubId) !== String(pubFilter)) return false;
     if (seriesFilter && String(comic.series?.id) !== String(seriesFilter)) return false;
     if (releaseFilter) {
       if (releaseFilter === "unknown" && comic.release_date) return false;
@@ -285,7 +286,7 @@ export default function LibraryClient({ publishers, allSeries }) {
 	                  <div style={s.info}>
 	                    <p style={s.series}>{comic.series?.name ?? ""}</p>
 	                    <p style={s.issueTitle}>{comic.issue_number ? `#${comic.issue_number}` : comic.title}</p>
-	                    <p style={s.cardMeta}>{[comic.publisher?.name, formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
+	                    <p style={s.cardMeta}>{[(comic.publisher?.name ?? comic.series?.publisher?.name), formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
 	                  </div>
                 </Link>
               ))}
@@ -306,7 +307,7 @@ function sortComics(comics, sortBy) {
     sorted.sort((a, b) => time(b.release_date) - time(a.release_date) || text(a.series?.name).localeCompare(text(b.series?.name)));
   } else if (sortBy === "publisher_asc") {
     sorted.sort((a, b) =>
-      text(a.publisher?.name).localeCompare(text(b.publisher?.name)) ||
+      text(a.publisher?.name ?? a.series?.publisher?.name).localeCompare(text(b.publisher?.name ?? b.series?.publisher?.name)) ||
       text(a.series?.name).localeCompare(text(b.series?.name)) ||
       compareIssue(a.issue_number, b.issue_number)
     );
@@ -314,7 +315,7 @@ function sortComics(comics, sortBy) {
     sorted.sort((a, b) =>
       text(a.series?.name).localeCompare(text(b.series?.name)) ||
       compareIssue(a.issue_number, b.issue_number) ||
-      text(a.publisher?.name).localeCompare(text(b.publisher?.name))
+      text(a.publisher?.name ?? a.series?.publisher?.name).localeCompare(text(b.publisher?.name ?? b.series?.publisher?.name))
     );
   } else {
     sorted.sort((a, b) => time(b.created_at) - time(a.created_at));
@@ -335,7 +336,7 @@ function matchesSearch(comic, search) {
     comic.issue_number && `#${comic.issue_number}`,
     comic.issue_number,
     comic.series?.name,
-    comic.publisher?.name,
+    comic.publisher?.name ?? comic.series?.publisher?.name,
   ].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle));
 }
 

@@ -32,6 +32,7 @@ export default function ReleasesClient() {
   const [cacheInfo, setCacheInfo]     = useState(null);
   const [pubFilter, setPubFilter]     = useState("");
   const [seriesFilter, setSeriesFilter] = useState("");
+  const [firstIssueOnly, setFirstIssueOnly] = useState(false);
 
   const wednesday = getWednesday(weekOffset);
   const weekLabel = formatWeekLabel(wednesday);
@@ -254,6 +255,7 @@ export default function ReleasesClient() {
     return list.filter(r => {
       if (pubFilter && r.publisher !== pubFilter) return false;
       if (seriesFilter && r.series_name !== seriesFilter) return false;
+      if (firstIssueOnly && Number(r.issue_number) !== 1) return false;
       return true;
     });
   }
@@ -301,8 +303,16 @@ export default function ReleasesClient() {
             ]}
           />
 
-          {(pubFilter || seriesFilter) && (
-            <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); }}>
+          <button
+            type="button"
+            style={{ ...s.firstIssueBtn, ...(firstIssueOnly ? s.firstIssueBtnOn : {}) }}
+            onClick={() => setFirstIssueOnly(v => !v)}
+          >
+            #1s Only
+          </button>
+
+          {(pubFilter || seriesFilter || firstIssueOnly) && (
+            <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setFirstIssueOnly(false); }}>
               Clear
             </button>
           )}
@@ -484,6 +494,8 @@ const s = {
   filterLabel:    { color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
   filterSelect:   { width: 180, minHeight: 38 },
   clearBtn:       { minHeight: 38, padding: "0 12px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", fontFamily: "var(--font-burst)", letterSpacing: "0.08em", textTransform: "uppercase", boxShadow: "2px 2px 0 var(--ink-000)", cursor: "pointer" },
+  firstIssueBtn:  { minHeight: 38, padding: "0 14px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", fontFamily: "var(--font-burst)", letterSpacing: "0.08em", textTransform: "uppercase", boxShadow: "2px 2px 0 var(--ink-000)", cursor: "pointer" },
+  firstIssueBtnOn: { background: "var(--hero-gold)", color: "var(--ink-000)", fontWeight: 700 },
   row:            { display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" },
   rowHighlight:   { background: "var(--bg-surface)", backgroundImage: "var(--halftone-dots-gold)", backgroundSize: "var(--halftone-size)", borderRadius: 10, padding: "10px 12px", marginBottom: 2, borderBottom: "none", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)" },
   cover:          { width: "clamp(60px, 9vw, 96px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 4, flexShrink: 0 },

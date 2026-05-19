@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
+
+configurePdfWorker();
 
 export default function PDFReaderClient({ comic }) {
   const canvasRef = useRef(null);
@@ -112,7 +114,6 @@ export default function PDFReaderClient({ comic }) {
       try {
         const loadingTask = getDocument({
           data: pdfData,
-          disableWorker: true,
           isEvalSupported: false,
           useSystemFonts: true,
           isOffscreenCanvasSupported: false,
@@ -235,6 +236,17 @@ export default function PDFReaderClient({ comic }) {
 
 function nativePath(uri) {
   return String(uri || "").replace(/^file:\/\//, "");
+}
+
+function configurePdfWorker() {
+  if (typeof window === "undefined" || typeof Worker === "undefined") return;
+  if (GlobalWorkerOptions.workerPort || GlobalWorkerOptions.workerSrc) return;
+  const workerUrl = new URL("pdfjs-dist/legacy/build/pdf.worker.mjs", import.meta.url);
+  try {
+    GlobalWorkerOptions.workerPort = new Worker(workerUrl, { type: "module" });
+  } catch {
+    GlobalWorkerOptions.workerSrc = workerUrl.toString();
+  }
 }
 
 if (typeof Promise.withResolvers !== "function") {

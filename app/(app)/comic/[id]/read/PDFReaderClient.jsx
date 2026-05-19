@@ -4,14 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
-
-GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/legacy/build/pdf.worker.mjs",
-  import.meta.url
-).toString();
 
 export default function PDFReaderClient({ comic }) {
   const canvasRef = useRef(null);
@@ -22,6 +17,7 @@ export default function PDFReaderClient({ comic }) {
   const [containerWidth, setContainerWidth] = useState(360);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState("");
+  const [pdfData, setPdfData] = useState(null);
   const [pdfUrl, setPdfUrl] = useState("");
   const [sourceLabel, setSourceLabel] = useState("");
   const [loadingDoc, setLoadingDoc] = useState(false);
@@ -45,7 +41,7 @@ export default function PDFReaderClient({ comic }) {
 
     async function resolvePdf() {
       setError("");
-      setPdfUrl("");
+      setPdfData(null);
       setSourceLabel("");
       setPageCount(0);
 
@@ -53,8 +49,10 @@ export default function PDFReaderClient({ comic }) {
       if (!active) return;
 
       if (local?.blob) {
+        const bytes = new Uint8Array(await local.blob.arrayBuffer());
         localUrl = URL.createObjectURL(local.blob);
         if (!active) return;
+        setPdfData(bytes);
         setPdfUrl(localUrl);
         setSourceLabel("Device");
         return;
@@ -64,10 +62,12 @@ export default function PDFReaderClient({ comic }) {
         const res = await fetch(`/api/google/pdf/${comic.id}`);
         if (!res.ok) throw new Error(`Could not load Google Drive PDF. HTTP ${res.status}.`);
         const buffer = await res.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
         const blob = new Blob([buffer], { type: "application/pdf" });
         await saveLocalPdfBlob(comic.id, blob, `${title}.pdf`);
         localUrl = URL.createObjectURL(blob);
         if (!active) return;
+        setPdfData(bytes);
         setPdfUrl(localUrl);
         setSourceLabel("Saved locally from Google Drive");
         return;
@@ -99,7 +99,7 @@ export default function PDFReaderClient({ comic }) {
   }, []);
 
   useEffect(() => {
-    if (!pdfUrl) return;
+    if (!pdfData) return;
     let active = true;
 
     async function loadDoc() {
@@ -111,10 +111,12 @@ export default function PDFReaderClient({ comic }) {
 
       try {
         const loadingTask = getDocument({
-          url: pdfUrl,
+          data: pdfData,
+          disableWorker: true,
           isEvalSupported: false,
           useSystemFonts: true,
           isOffscreenCanvasSupported: false,
+          useWorkerFetch: false,
         });
         const pdfDoc = await loadingTask.promise;
         if (!active) {
@@ -135,7 +137,7 @@ export default function PDFReaderClient({ comic }) {
     return () => {
       active = false;
     };
-  }, [pdfUrl]);
+  }, [pdfData]);
 
   useEffect(() => {
     if (!docRef.current || !canvasRef.current || !pageCount) return;

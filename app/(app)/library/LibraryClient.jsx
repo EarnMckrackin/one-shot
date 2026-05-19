@@ -404,7 +404,7 @@ const s = {
   },
 
   grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(190px, 100%), 1fr))", gap: 12 },
-  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(170px, 100%), 1fr))", gap: 14 },
+  grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(clamp(172px, 24vw, 260px), 1fr))", gap: "clamp(12px, 1.6vw, 20px)" },
 
   pubCard:         { width: "100%", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left", font: "inherit" },
   pubCardActive:   { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent)" },
@@ -412,7 +412,7 @@ const s = {
   pubCount:        { display: "block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" },
 
   card:            { background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", display: "block" },
-  coverWrap:       { position: "relative", paddingTop: "150%" },
+  coverWrap:       { position: "relative", paddingTop: "148%" },
   cover:           { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" },
   coverPlaceholder:{ background: "var(--bg-surface)", color: "var(--text-faint)", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
   readBadge:       { position: "absolute", top: 6, right: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },

@@ -4,11 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import { FileViewer } from "@capacitor/file-viewer";
-import { Document, Page, pdfjs } from "react-pdf";
 import { readReaderProgress, writeReaderProgress } from "../../../../../lib/local-data-store";
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
-
-pdfjs.GlobalWorkerOptions.workerSrc = "";
 
 export default function PDFReaderClient({ comic }) {
   const containerRef = useRef(null);
@@ -19,6 +16,7 @@ export default function PDFReaderClient({ comic }) {
   const [error, setError] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [sourceLabel, setSourceLabel] = useState("");
+  const [openingInApp, setOpeningInApp] = useState(false);
   const [openingNative, setOpeningNative] = useState(false);
 
   const title = useMemo(() => {
@@ -56,11 +54,7 @@ export default function PDFReaderClient({ comic }) {
       if (local?.blob) {
         const url = URL.createObjectURL(local.blob);
         localUrl = url;
-        const bytes = new Uint8Array(await local.blob.arrayBuffer());
-        if (!active) {
-          URL.revokeObjectURL(url);
-          return;
-        }
+        if (!active) return;
         setPdfUrl(url);
         setSourceLabel("Device");
         return;
@@ -126,6 +120,23 @@ export default function PDFReaderClient({ comic }) {
     }
   }
 
+  async function openInAppNativeReader() {
+    if (Capacitor.getPlatform() === "web") return;
+    setOpeningInApp(true);
+    try {
+      const native = await ensureNativePdf(comic.id);
+      if (native?.uri) {
+        await FileViewer.openDocumentFromLocalPath({ path: nativePath(native.uri) });
+        return;
+      }
+      throw new Error("No PDF file is available on this device.");
+    } catch (err) {
+      setError(err?.message || "Could not open the in-app native PDF reader.");
+    } finally {
+      setOpeningInApp(false);
+    }
+  }
+
   return (
     <div style={s.page}>
       <div style={s.toolbar}>
@@ -159,10 +170,18 @@ export default function PDFReaderClient({ comic }) {
           <button
             type="button"
             style={s.openBtn}
+            onClick={openInAppNativeReader}
+            disabled={openingInApp || Capacitor.getPlatform() === "web"}
+          >
+            {openingInApp ? "Opening..." : "Open In-App"}
+          </button>
+          <button
+            type="button"
+            style={s.layoutBtn}
             onClick={openNativePdf}
             disabled={openingNative}
           >
-            {openingNative ? "Opening..." : "Open Externally"}
+            {openingNative ? "Opening..." : "Fallback"}
           </button>
         </div>
       </div>
@@ -171,8 +190,8 @@ export default function PDFReaderClient({ comic }) {
         <div style={s.notice}>
           <h2 style={s.noticeTitle}>Could not render the PDF</h2>
           <p style={s.noticeText}>{error}</p>
-          <button type="button" style={s.noticeButton} onClick={openNativePdf}>
-            Open Externally
+          <button type="button" style={s.noticeButton} onClick={openInAppNativeReader}>
+            Open In-App
           </button>
         </div>
       ) : (
@@ -182,28 +201,17 @@ export default function PDFReaderClient({ comic }) {
           </p>
           <div ref={containerRef} style={s.reader}>
             {pdfUrl && (
-              <Document
-                file={pdfUrl}
-                options={{ disableWorker: true, isEvalSupported: false, useSystemFonts: true }}
-                onLoadSuccess={({ numPages }) => {
-                  setPageCount(numPages);
-                  setCurrentPage((page) => Math.max(1, Math.min(page, numPages)));
+              <iframe
+                title={title}
+                src={pdfUrl}
+                style={s.frame}
+                onLoad={() => {
+                  setPageCount(1);
+                  setCurrentPage(1);
                   setError("");
                 }}
-                onLoadError={(err) => setError(err?.message || "Unable to load this PDF document.")}
-                loading={<p style={s.noticeText}>Loading PDF document...</p>}
-              >
-                <Page
-                  key={`page-${currentPage}-${Math.floor(containerWidth)}-${zoom}`}
-                  pageNumber={currentPage}
-                  width={Math.floor(containerWidth * zoom)}
-                  renderMode="canvas"
-                  renderAnnotationLayer={false}
-                  renderTextLayer={false}
-                  onRenderError={(err) => setError(err?.message || "Unable to render this PDF page.")}
-                  loading={<p style={s.noticeText}>Rendering page...</p>}
-                />
-              </Document>
+                onError={() => setError("Unable to render this PDF in the in-app browser.")}
+              />
             )}
           </div>
         </>
@@ -343,6 +351,14 @@ const s = {
     border: "2px solid var(--ink-000)",
     boxShadow: "4px 4px 0 var(--ink-000)",
     borderRadius: 4,
+  },
+  frame: {
+    width: "100%",
+    minHeight: "72vh",
+    border: "2px solid var(--ink-000)",
+    boxShadow: "4px 4px 0 var(--ink-000)",
+    borderRadius: 4,
+    background: "#fff",
   },
   notice: {
     marginTop: 24,

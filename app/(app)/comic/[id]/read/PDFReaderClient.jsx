@@ -9,7 +9,7 @@ import { readReaderProgress, writeReaderProgress } from "../../../../../lib/loca
 import { ensureNativePdf, getLocalPdf, saveLocalPdfBlob } from "../../../../../lib/local-pdf-store";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 
@@ -198,6 +198,7 @@ export default function PDFReaderClient({ comic }) {
                 <Page
                   pageNumber={currentPage}
                   width={Math.floor(containerWidth * zoom)}
+                  renderMode={Capacitor.getPlatform() === "web" ? "canvas" : "svg"}
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
                   onRenderError={(err) => setError(err?.message || "Unable to render this PDF page.")}

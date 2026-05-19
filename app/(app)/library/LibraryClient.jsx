@@ -25,12 +25,21 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
   const [cacheInfo, setCacheInfo] = useState(null);
   const [connectionState, setConnectionState] = useState("unknown");
 
-  const [savedPrefs] = useState(() => readLibraryPrefs());
-  const [pubFilter, setPubFilter]       = useState(savedPrefs.pubFilter ?? "");
-  const [seriesFilter, setSeriesFilter] = useState(savedPrefs.seriesFilter ?? "");
-  const [releaseFilter, setReleaseFilter] = useState(savedPrefs.releaseFilter ?? "");
-  const [formatFilter, setFormatFilter] = useState(savedPrefs.formatFilter ?? "Both");
-  const [sortBy, setSortBy]             = useState(savedPrefs.sortBy ?? "created_desc");
+  const [pubFilter, setPubFilter]         = useState("");
+  const [seriesFilter, setSeriesFilter]   = useState("");
+  const [releaseFilter, setReleaseFilter] = useState("");
+  const [formatFilter, setFormatFilter]   = useState("Both");
+  const [sortBy, setSortBy]               = useState("created_desc");
+
+  // Load persisted prefs after hydration (localStorage unavailable on server)
+  useEffect(() => {
+    const prefs = readLibraryPrefs();
+    if (prefs.pubFilter)                          setPubFilter(prefs.pubFilter);
+    if (prefs.seriesFilter)                       setSeriesFilter(prefs.seriesFilter);
+    if (prefs.releaseFilter)                      setReleaseFilter(prefs.releaseFilter);
+    if (prefs.formatFilter && prefs.formatFilter !== "Both") setFormatFilter(prefs.formatFilter);
+    if (prefs.sortBy && prefs.sortBy !== "created_desc")     setSortBy(prefs.sortBy);
+  }, []);
 
   useEffect(() => {
     const publisher = searchParams.get("publisher") || "";

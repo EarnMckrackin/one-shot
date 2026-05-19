@@ -43,8 +43,10 @@ export async function POST() {
     const patch = buildPatch(comic, enriched);
 
     // Publisher upsert: find or create publisher record, then link to comic and series
-    if (enriched.publisher && !comic.publisher_id) {
-      const publisherId = await upsertPublisher(supabase, enriched.publisher, user.id);
+    const publisherName = enriched.publisher?.trim();
+    const badPublisher = !publisherName || /^(unknown|n\/a|various|tbd)$/i.test(publisherName);
+    if (!badPublisher && !comic.publisher_id) {
+      const publisherId = await upsertPublisher(supabase, publisherName, user.id);
       if (publisherId) {
         patch.publisher_id = publisherId;
         if (comic.series_id && !comic.series?.publisher_id) {

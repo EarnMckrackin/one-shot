@@ -154,39 +154,48 @@ export default function PDFReaderClient({ comic }) {
         renderTaskRef.current?.cancel?.();
         const page = await docRef.current.getPage(currentPage);
         if (cancelled) return;
-        const baseViewport = page.getViewport({ scale: 1 });
-        const cssScale = (containerWidth / baseViewport.width) * zoom;
-        const viewport = page.getViewport({ scale: cssScale });
+
+        // Bake dpr into the viewport scale directly — PDF.js sets its own
+        // internal CTM from the viewport, so a pre-set setTransform gets
+        // overridden and breaks rendering. The canonical approach is to include
+        // dpr in the scale and match canvas pixel dimensions to viewport.
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const base = page.getViewport({ scale: 1 });
+        const fullScale = (containerWidth / base.width) * zoom * dpr;
+
+        // Conservative caps for Android WebView GPU texture limits
+        const MAX_PX = 3_500_000;
+        const MAX_EDGE = 3000;
+        const rawW = Math.floor(base.width * fullScale);
+        const rawH = Math.floor(base.height * fullScale);
+        const edgeCap = Math.min(1, MAX_EDGE / Math.max(rawW, rawH, 1));
+        const pixelCap = Math.min(1, Math.sqrt(MAX_PX / Math.max(rawW * rawH, 1)));
+        const safeScale = Math.max(0.25, fullScale * Math.min(edgeCap, pixelCap));
+
+        const viewport = page.getViewport({ scale: safeScale });
         const canvas = canvasRef.current;
+        if (!canvas) return;
         const context = canvas.getContext("2d", { alpha: false });
         if (!context) throw new Error("Canvas context unavailable.");
 
-        const maxPixels = 6_000_000;
-        const maxEdge = 4096;
-        const deviceScale = Math.min(window.devicePixelRatio || 1, 2);
-        const rawWidth = Math.max(1, Math.floor(viewport.width * deviceScale));
-        const rawHeight = Math.max(1, Math.floor(viewport.height * deviceScale));
-        const edgeScale = Math.min(1, maxEdge / Math.max(rawWidth, rawHeight));
-        const pixelScale = Math.min(1, Math.sqrt(maxPixels / (rawWidth * rawHeight)));
-        const safeScale = Math.min(edgeScale, pixelScale);
-        const outputScale = Math.max(0.5, deviceScale * safeScale);
+        const w = Math.max(1, Math.floor(viewport.width));
+        const h = Math.max(1, Math.floor(viewport.height));
+        canvas.width = w;
+        canvas.height = h;
+        // CSS display size undoes the dpr upscale so it looks correct on screen
+        canvas.style.width = Math.max(1, Math.floor(w / dpr)) + "px";
+        canvas.style.height = Math.max(1, Math.floor(h / dpr)) + "px";
 
-        canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-        canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-        context.imageSmoothingEnabled = true;
         context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillRect(0, 0, w, h);
+
         const task = page.render({ canvasContext: context, viewport });
         renderTaskRef.current = task;
         await task.promise;
-        setRenderStats(`Rendered ${canvas.width}x${canvas.height} @${outputScale.toFixed(2)}x`);
+        if (!cancelled) setRenderStats(`${w}×${h}px @${safeScale.toFixed(2)} (dpr ${dpr})`);
       } catch (err) {
-        if (!cancelled && err?.name !== "RenderingCancelledException") {
-          setError(err?.message || "Unable to render this PDF page.");
-        }
+        if (cancelled || err?.name === "RenderingCancelledException") return;
+        setError(err?.message || "Unable to render this PDF page.");
       }
     }
 
@@ -244,7 +253,7 @@ export default function PDFReaderClient({ comic }) {
       ) : (
         <>
           <p style={s.progress}>{loadingDoc ? "Loading PDF..." : pageCount ? `Page ${currentPage} of ${pageCount}` : "Loading PDF..."}</p>
-          {!loadingDoc && renderStats && <p style={s.debug}>{renderStats}</p>}
+          {!loadingDoc && <p style={s.debug}>{renderStats || (pageCount ? "Rendering…" : "")}</p>}
           <div style={s.reader}>
             <canvas ref={canvasRef} style={s.canvas} />
           </div>

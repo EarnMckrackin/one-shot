@@ -13,11 +13,12 @@ const SORTS = [
   { value: "series_asc", label: "Series" },
 ];
 
-export default function LibraryClient({ publishers, allSeries }) {
+export default function LibraryClient({ publishers: initialPublishers, allSeries }) {
   const searchParams = useSearchParams();
   const [view, setView]         = useState("All");
   const [search, setSearch]     = useState("");
   const [comics, setComics]     = useState([]);
+  const [publishers, setPublishers] = useState(initialPublishers ?? []);
   const [releaseOptions, setReleaseOptions] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [cacheInfo, setCacheInfo] = useState(null);
@@ -83,7 +84,12 @@ export default function LibraryClient({ publishers, allSeries }) {
   }, []);
 
   useEffect(() => {
-    fetch("/api/comics/enrich-missing", { method: "POST" }).catch(() => {});
+    fetch("/api/comics/enrich-missing", { method: "POST" })
+      .then(async () => {
+        const { data } = await supabase.from("publishers").select("id, name").order("name");
+        if (data?.length) setPublishers(data);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

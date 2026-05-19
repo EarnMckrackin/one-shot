@@ -61,11 +61,11 @@ export default function ReleasesClient() {
         .select("id, title, issue_number, comicvine_id, series:series_id(name)"),
     ]).then(([{ releases: r, pullMatches, source: releaseSource, warning: releaseWarning }, { data: pl }, { data: library }]) => {
       const releaseList = r ?? [];
-      setReleases(releaseList);
       setSource(releaseSource ?? null);
       setWarning(releaseWarning ?? null);
 
       // Build cv_id → series_db_id via name matching (works for LOCG + ComicVine)
+      // Also backfill missing publisher names from Supabase series records
       const map = {};
       (pl ?? []).forEach(entry => {
         const sName = entry.series?.name;
@@ -86,6 +86,8 @@ export default function ReleasesClient() {
         }
       });
 
+      // Set releases AFTER backfill so publisher names are present on first render
+      setReleases([...releaseList]);
       setSeriesIdMap(map);
       const pullKeys = [...(pullMatches ?? []), ...Object.keys(map)];
       setPullSet(new Set(pullKeys));

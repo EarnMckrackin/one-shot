@@ -121,7 +121,10 @@ export default function PDFReaderClient({ comic }) {
           isOffscreenCanvasSupported: false,
           useWorkerFetch: false,
         });
-        const pdfDoc = await loadingTask.promise;
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("PDF load timed out — worker may have failed to start.")), 15000)
+        );
+        const pdfDoc = await Promise.race([loadingTask.promise, timeout]);
         if (!active) {
           await pdfDoc.destroy();
           return;
@@ -258,11 +261,13 @@ function nativePath(uri) {
 function configurePdfWorker() {
   if (typeof window === "undefined" || typeof Worker === "undefined") return;
   if (GlobalWorkerOptions.workerPort || GlobalWorkerOptions.workerSrc) return;
-  const workerUrl = new URL("pdfjs-dist/legacy/build/pdf.worker.mjs", import.meta.url);
+  // Use a stable public path so Android WebView can reliably fetch the worker
+  // without depending on webpack's import.meta.url URL-replacement heuristic.
+  const workerSrc = `${window.location.origin}/pdf.worker.min.mjs`;
   try {
-    GlobalWorkerOptions.workerPort = new Worker(workerUrl, { type: "module" });
+    GlobalWorkerOptions.workerPort = new Worker(workerSrc, { type: "module" });
   } catch {
-    GlobalWorkerOptions.workerSrc = workerUrl.toString();
+    GlobalWorkerOptions.workerSrc = workerSrc;
   }
 }
 

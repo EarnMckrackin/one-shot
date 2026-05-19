@@ -6,3 +6,17 @@ out/
 build/
 .vercel
 *.log
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Tool workspaces
+.playwright-mcp/
+.serena/
+
+# Supabase temp
+supabase/.temp/
+
+# Scratch / screenshots
+login-new.png

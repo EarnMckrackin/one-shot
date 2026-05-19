@@ -1,6 +1,13 @@
 const fs = require("fs");
 const path = require("path");
 
+// Keep the PDF.js worker in public/ so Android WebView can reliably load it.
+const workerSrc = path.join(__dirname, "..", "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.min.mjs");
+const workerDest = path.join(__dirname, "..", "public", "pdf.worker.min.mjs");
+if (fs.existsSync(workerSrc)) {
+  fs.copyFileSync(workerSrc, workerDest);
+}
+
 const buildGradle = path.join(
   __dirname,
   "..",

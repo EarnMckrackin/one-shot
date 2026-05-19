@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
+import CustomSelect from "../../../components/CustomSelect";
 import { addBoughtReleaseKeys, readBoughtReleaseKeys, readCachedReleases, readLocalLibrary, upsertLocalLibraryComic, writeCachedReleases } from "../../../lib/local-data-store";
 
 function getWednesday(offset = 0) {
@@ -277,28 +278,28 @@ export default function ReleasesClient() {
       {!loading && releases.length > 0 && (
         <div style={s.filterRow}>
           <label style={s.filterLabel} htmlFor="rel-pub-filter">Publisher</label>
-          <select
+          <CustomSelect
             id="rel-pub-filter"
-            className="ink-input"
             value={pubFilter}
             onChange={e => { setPubFilter(e.target.value); setSeriesFilter(""); }}
             style={s.filterSelect}
-          >
-            <option value="">All publishers</option>
-            {publishers.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+            options={[
+              { value: "", label: "All publishers" },
+              ...publishers.map(p => ({ value: p, label: p })),
+            ]}
+          />
 
           <label style={s.filterLabel} htmlFor="rel-series-filter">Series</label>
-          <select
+          <CustomSelect
             id="rel-series-filter"
-            className="ink-input"
             value={seriesFilter}
             onChange={e => setSeriesFilter(e.target.value)}
             style={s.filterSelect}
-          >
-            <option value="">All series</option>
-            {seriesNames.map(name => <option key={name} value={name}>{name}</option>)}
-          </select>
+            options={[
+              { value: "", label: "All series" },
+              ...seriesNames.map(n => ({ value: n, label: n })),
+            ]}
+          />
 
           {(pubFilter || seriesFilter) && (
             <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); }}>

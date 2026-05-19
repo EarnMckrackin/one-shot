@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
 import { localConnectionState, readLocalLibrary, writeLocalLibrary, readLibraryPrefs, writeLibraryPrefs } from "../../../lib/local-data-store";
+import CustomSelect from "../../../components/CustomSelect";
 
 const VIEWS = ["All", "Publishers", "Series", "Unread"];
 const SORTS = [
@@ -155,72 +156,62 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
 
       <div style={s.sortRow}>
         <label style={s.sortLabel} htmlFor="publisher-filter">Publisher</label>
-        <select
+        <CustomSelect
           id="publisher-filter"
-          className="ink-input"
           value={pubFilter}
           onChange={(e) => { setPubFilter(e.target.value); setSeriesFilter(""); }}
           style={s.filterSelect}
-        >
-          <option value="">All publishers</option>
-          {publishers.map((publisher) => (
-            <option key={publisher.id} value={String(publisher.id)}>{publisher.name}</option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "All publishers" },
+            ...publishers.map(p => ({ value: String(p.id), label: p.name })),
+          ]}
+        />
 
         <label style={s.sortLabel} htmlFor="series-filter">Series</label>
-        <select
+        <CustomSelect
           id="series-filter"
-          className="ink-input"
           value={seriesFilter}
           onChange={(e) => setSeriesFilter(e.target.value)}
           style={s.filterSelect}
-        >
-          <option value="">All series</option>
-          {filteredSeries.map((series) => (
-            <option key={series.id} value={String(series.id)}>{series.name}</option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "All series" },
+            ...filteredSeries.map(s => ({ value: String(s.id), label: s.name })),
+          ]}
+        />
 
         <label style={s.sortLabel} htmlFor="release-filter">Release</label>
-        <select
+        <CustomSelect
           id="release-filter"
-          className="ink-input"
           value={releaseFilter}
           onChange={(e) => setReleaseFilter(e.target.value)}
           style={s.filterSelect}
-        >
-          <option value="">All dates</option>
-          {releaseOptions.map((month) => (
-            <option key={month.value} value={month.value}>{month.label}</option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "All dates" },
+            ...releaseOptions.map(m => ({ value: m.value, label: m.label })),
+          ]}
+        />
 
         <label style={s.sortLabel} htmlFor="format-filter">Format</label>
-        <select
+        <CustomSelect
           id="format-filter"
-          className="ink-input"
           value={formatFilter}
           onChange={(e) => setFormatFilter(e.target.value)}
           style={s.filterSelect}
-        >
-          <option value="Both">Both</option>
-          <option value="PDF">PDF</option>
-          <option value="Physical">Physical</option>
-        </select>
+          options={[
+            { value: "Both", label: "Both" },
+            { value: "PDF", label: "PDF" },
+            { value: "Physical", label: "Physical" },
+          ]}
+        />
 
         <label style={s.sortLabel} htmlFor="library-sort">Sort</label>
-        <select
+        <CustomSelect
           id="library-sort"
-          className="ink-input"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           style={s.sortSelect}
-        >
-          {SORTS.map((sort) => (
-            <option key={sort.value} value={sort.value}>{sort.label}</option>
-          ))}
-        </select>
+          options={SORTS.map(sort => ({ value: sort.value, label: sort.label }))}
+        />
         {(pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both") && (
           <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setReleaseFilter(""); setFormatFilter("Both"); }}>
             Clear

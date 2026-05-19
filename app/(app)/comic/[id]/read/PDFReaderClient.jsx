@@ -24,6 +24,7 @@ export default function PDFReaderClient({ comic }) {
   const [sourceLabel, setSourceLabel] = useState("");
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [openingNative, setOpeningNative] = useState(false);
+  const [renderStats, setRenderStats] = useState("");
 
   const title = useMemo(() => `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`, [comic.title, comic.issue_number]);
 
@@ -107,6 +108,7 @@ export default function PDFReaderClient({ comic }) {
     async function loadDoc() {
       setLoadingDoc(true);
       setError("");
+      setRenderStats("");
       renderTaskRef.current?.cancel?.();
       docRef.current?.destroy?.();
       docRef.current = null;
@@ -150,20 +152,34 @@ export default function PDFReaderClient({ comic }) {
         const page = await docRef.current.getPage(currentPage);
         if (cancelled) return;
         const baseViewport = page.getViewport({ scale: 1 });
-        const scale = (containerWidth / baseViewport.width) * zoom;
-        const viewport = page.getViewport({ scale });
+        const cssScale = (containerWidth / baseViewport.width) * zoom;
+        const viewport = page.getViewport({ scale: cssScale });
         const canvas = canvasRef.current;
         const context = canvas.getContext("2d", { alpha: false });
-        const outputScale = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
+        if (!context) throw new Error("Canvas context unavailable.");
+
+        const maxPixels = 6_000_000;
+        const maxEdge = 4096;
+        const deviceScale = Math.min(window.devicePixelRatio || 1, 2);
+        const rawWidth = Math.max(1, Math.floor(viewport.width * deviceScale));
+        const rawHeight = Math.max(1, Math.floor(viewport.height * deviceScale));
+        const edgeScale = Math.min(1, maxEdge / Math.max(rawWidth, rawHeight));
+        const pixelScale = Math.min(1, Math.sqrt(maxPixels / (rawWidth * rawHeight)));
+        const safeScale = Math.min(edgeScale, pixelScale);
+        const outputScale = Math.max(0.5, deviceScale * safeScale);
+
+        canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+        canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
         context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
         context.imageSmoothingEnabled = true;
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
         const task = page.render({ canvasContext: context, viewport });
         renderTaskRef.current = task;
         await task.promise;
+        setRenderStats(`Rendered ${canvas.width}x${canvas.height} @${outputScale.toFixed(2)}x`);
       } catch (err) {
         if (!cancelled && err?.name !== "RenderingCancelledException") {
           setError(err?.message || "Unable to render this PDF page.");
@@ -225,6 +241,7 @@ export default function PDFReaderClient({ comic }) {
       ) : (
         <>
           <p style={s.progress}>{loadingDoc ? "Loading PDF..." : pageCount ? `Page ${currentPage} of ${pageCount}` : "Loading PDF..."}</p>
+          {!loadingDoc && renderStats && <p style={s.debug}>{renderStats}</p>}
           <div style={s.reader}>
             <canvas ref={canvasRef} style={s.canvas} />
           </div>
@@ -275,6 +292,7 @@ const s = {
   pagePill: { minHeight: 34, display: "inline-flex", alignItems: "center", padding: "0 10px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", boxShadow: "2px 2px 0 var(--ink-000)", fontFamily: "var(--font-mono)", fontSize: 12 },
   layoutBtn: { minHeight: 34, padding: "0 10px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text)", boxShadow: "2px 2px 0 var(--ink-000)", fontFamily: "var(--font-burst)", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" },
   progress: { margin: "14px 0", color: "var(--text-soft)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" },
+  debug: { margin: "0 0 10px", color: "var(--text-faint)", fontSize: 11 },
   reader: { display: "flex", justifyContent: "center", paddingBottom: "calc(28px + env(safe-area-inset-bottom, 0px))" },
   canvas: { maxWidth: "100%", background: "#fff", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)", borderRadius: 4 },
   notice: { marginTop: 24, padding: 18, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 10, boxShadow: "3px 3px 0 var(--ink-000)" },

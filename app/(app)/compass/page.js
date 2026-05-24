@@ -1,3 +1,7 @@
-import CompassClient from "./CompassClient";
-export const metadata = { title: "Continuity Compass — One Shot" };
-export default function CompassPage() { return <CompassClient />; }
+import { redirect } from "next/navigation";
+
+export const metadata = { title: "Resurface - One Shot" };
+
+export default function CompassPage() {
+  redirect("/resurface");
+}

@@ -1,12 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
-import { localConnectionState, readLocalLibrary, writeLocalLibrary, readLibraryPrefs, writeLibraryPrefs } from "../../../lib/local-data-store";
+import { readLibraryPrefs, writeLibraryPrefs } from "../../../lib/local-data-store";
 import CustomSelect from "../../../components/CustomSelect";
+import ComicCover from "../../../components/ComicCover";
+import { useComics } from "../../../hooks/useComics";
 
-const VIEWS = ["All", "Publishers", "Series", "Unread"];
+const VIEWS = ["All", "Unread", "PDF", "Needs repair", "Publishers", "Series"];
 const SORTS = [
   { value: "created_desc", label: "Recently Added" },
   { value: "release_desc", label: "Release Date" },
@@ -16,20 +18,19 @@ const SORTS = [
 
 export default function LibraryClient({ publishers: initialPublishers, allSeries }) {
   const searchParams = useSearchParams();
+  const { comics, loading, connectionState, lastSynced, refresh } = useComics();
+
   const [view, setView]         = useState("All");
   const [search, setSearch]     = useState("");
-  const [comics, setComics]     = useState([]);
   const [publishers, setPublishers] = useState(initialPublishers ?? []);
   const [releaseOptions, setReleaseOptions] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [cacheInfo, setCacheInfo] = useState(null);
-  const [connectionState, setConnectionState] = useState("unknown");
 
   const [pubFilter, setPubFilter]         = useState("");
   const [seriesFilter, setSeriesFilter]   = useState("");
   const [releaseFilter, setReleaseFilter] = useState("");
   const [formatFilter, setFormatFilter]   = useState("Both");
   const [sortBy, setSortBy]               = useState("created_desc");
+  const [showFilters, setShowFilters]     = useState(false);
 
   // Load persisted prefs after hydration (localStorage unavailable on server)
   useEffect(() => {
@@ -45,8 +46,13 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
     const publisher = searchParams.get("publisher") || "";
     const series = searchParams.get("series") || "";
     const format = searchParams.get("format") || "";
+    const nextView = searchParams.get("view") || "";
     if (publisher) setPubFilter(publisher);
     if (["Both", "PDF", "Physical"].includes(format)) setFormatFilter(format);
+    if (VIEWS.includes(nextView)) {
+      setView(nextView);
+      if (nextView === "PDF") setFormatFilter("PDF");
+    }
     if (series) {
       const match = allSeries.find((item) => String(item.id) === series);
       setPubFilter(match?.publisher_id ? String(match.publisher_id) : "");
@@ -54,32 +60,6 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
       setView("All");
     }
   }, [allSeries, searchParams]);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setConnectionState(localConnectionState());
-      const cached = readLocalLibrary();
-      if (cached.comics.length) {
-        setComics(cached.comics);
-        setCacheInfo(cached.savedAt);
-      }
-      let q = supabase
-        .from("comics")
-        .select("id, title, issue_number, cover_url, has_pdf, drive_file_id, release_date, created_at, series:series_id(id, name, publisher:publisher_id(id, name)), publisher:publisher_id(id, name), reading_log(id)")
-        .order("created_at", { ascending: false });
-
-      const { data, error } = await q;
-      if (!error) {
-        const next = (data ?? []).map((c) => ({ ...c, read_count: c.reading_log?.length ?? 0 }));
-        setComics(next);
-        writeLocalLibrary(next);
-        setCacheInfo(new Date().toISOString());
-      }
-      setLoading(false);
-    }
-	    load();
-	  }, []);
 
   useEffect(() => {
     async function loadReleaseOptions() {
@@ -106,42 +86,48 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
     writeLibraryPrefs({ pubFilter, seriesFilter, releaseFilter, formatFilter, sortBy });
   }, [pubFilter, seriesFilter, releaseFilter, formatFilter, sortBy]);
 
-  const locallyFiltered = comics.filter((comic) => {
-    if (search && !matchesSearch(comic, search)) return false;
-    const comicPubId = comic.publisher?.id ?? comic.series?.publisher?.id;
-    if (pubFilter && String(comicPubId) !== String(pubFilter)) return false;
-    if (seriesFilter && String(comic.series?.id) !== String(seriesFilter)) return false;
-    if (releaseFilter) {
-      if (releaseFilter === "unknown" && comic.release_date) return false;
-      if (releaseFilter !== "unknown" && comic.release_date?.slice(0, 7) !== releaseFilter) return false;
-    }
-    return true;
-  });
+  const displayed = useMemo(() => {
+    const filtered = comics.filter((comic) => {
+      if (search && !matchesSearch(comic, search)) return false;
+      const comicPubId = comic.publisher?.id ?? comic.series?.publisher?.id;
+      if (pubFilter && String(comicPubId) !== String(pubFilter)) return false;
+      if (seriesFilter && String(comic.series?.id) !== String(seriesFilter)) return false;
+      if (releaseFilter) {
+        if (releaseFilter === "unknown" && comic.release_date) return false;
+        if (releaseFilter !== "unknown" && comic.release_date?.slice(0, 7) !== releaseFilter) return false;
+      }
+      if (formatFilter === "PDF") return hasDigitalPdf(comic);
+      if (formatFilter === "Physical") return !hasDigitalPdf(comic);
+      return true;
+    });
 
-  const formatFiltered = locallyFiltered.filter((comic) => {
-    if (formatFilter === "PDF") return hasDigitalPdf(comic);
-    if (formatFilter === "Physical") return !hasDigitalPdf(comic);
-    return true;
-  });
+    let final = filtered;
+    if (view === "Unread") final = final.filter((c) => c.read_count === 0);
+    if (view === "PDF") final = final.filter(hasDigitalPdf);
+    if (view === "Needs repair") final = final.filter(needsRepairWork);
+    return sortComics(final, sortBy);
+  }, [comics, search, pubFilter, seriesFilter, releaseFilter, formatFilter, view, sortBy]);
 
-  const displayed = sortComics(
-    view === "Unread" ? formatFiltered.filter((c) => c.read_count === 0) : formatFiltered,
-    sortBy
-  );
-
-  const filteredSeries = pubFilter
-    ? allSeries.filter((s) => String(s.publisher_id) === String(pubFilter))
-    : allSeries;
+  const filteredSeries = useMemo(() => {
+    return pubFilter
+      ? allSeries.filter((s) => String(s.publisher_id) === String(pubFilter))
+      : allSeries;
+  }, [allSeries, pubFilter]);
 
   return (
     <div>
       <div style={s.header}>
         <h1 style={s.title}>Library</h1>
         <span style={s.count}>{comics.length} ISSUES</span>
+        <button onClick={refresh} style={s.refreshBtn} title="Sync Library">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={loading ? "spin" : ""}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+        </button>
       </div>
       <p style={s.localStatus}>
+        Dense shelf and collection controls.
+        {" "}
         {connectionState === "offline" ? "Offline library cache" : "Local cache ready"}
-        {cacheInfo ? ` · saved ${formatCacheTime(cacheInfo)}` : ""}
+        {lastSynced ? ` · saved ${formatCacheTime(lastSynced)}` : ""}
       </p>
 
       <input
@@ -156,77 +142,141 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
           <button
             key={v}
             style={{ ...s.chip, ...(view === v ? s.chipActive : {}) }}
-            onClick={() => setView(v)}
+            onClick={() => {
+              setView(v);
+              if (v === "PDF") setFormatFilter("PDF");
+              if (v !== "PDF" && formatFilter === "PDF") setFormatFilter("Both");
+            }}
           >
             {v}
           </button>
         ))}
+        <button
+          style={s.filterToggle}
+          onClick={() => setShowFilters(true)}
+          className="mobile-filter-btn"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          Filters {(pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both") && "•"}
+        </button>
       </div>
 
-      <div style={s.sortRow}>
-        <label style={s.sortLabel} htmlFor="publisher-filter">Publisher</label>
-        <CustomSelect
-          id="publisher-filter"
-          value={pubFilter}
-          onChange={(e) => { setPubFilter(e.target.value); setSeriesFilter(""); }}
-          style={s.filterSelect}
-          options={[
-            { value: "", label: "All publishers" },
-            ...publishers.map(p => ({ value: String(p.id), label: p.name })),
-          ]}
-        />
+      <div style={s.sortRow} className={`filter-panel${showFilters ? " filter-panel--open" : ""}`}>
+        <div style={s.filterHeader} className="mobile-filter-header">
+          <h3 style={s.filterTitle}>Filter & Sort</h3>
+          <button style={s.filterClose} onClick={() => setShowFilters(false)}>✕</button>
+        </div>
 
-        <label style={s.sortLabel} htmlFor="series-filter">Series</label>
-        <CustomSelect
-          id="series-filter"
-          value={seriesFilter}
-          onChange={(e) => setSeriesFilter(e.target.value)}
-          style={s.filterSelect}
-          options={[
-            { value: "", label: "All series" },
-            ...filteredSeries.map(s => ({ value: String(s.id), label: s.name })),
-          ]}
-        />
+        <div style={s.filterGrid}>
+          <div style={s.filterField}>
+            <label style={s.sortLabel} htmlFor="publisher-filter">Publisher</label>
+            <CustomSelect
+              id="publisher-filter"
+              value={pubFilter}
+              onChange={(e) => { setPubFilter(e.target.value); setSeriesFilter(""); }}
+              style={s.filterSelect}
+              options={[
+                { value: "", label: "All publishers" },
+                ...publishers.map(p => ({ value: String(p.id), label: p.name })),
+              ]}
+            />
+          </div>
 
-        <label style={s.sortLabel} htmlFor="release-filter">Release</label>
-        <CustomSelect
-          id="release-filter"
-          value={releaseFilter}
-          onChange={(e) => setReleaseFilter(e.target.value)}
-          style={s.filterSelect}
-          options={[
-            { value: "", label: "All dates" },
-            ...releaseOptions.map(m => ({ value: m.value, label: m.label })),
-          ]}
-        />
+          <div style={s.filterField}>
+            <label style={s.sortLabel} htmlFor="series-filter">Series</label>
+            <CustomSelect
+              id="series-filter"
+              value={seriesFilter}
+              onChange={(e) => setSeriesFilter(e.target.value)}
+              style={s.filterSelect}
+              options={[
+                { value: "", label: "All series" },
+                ...filteredSeries.map(s => ({ value: String(s.id), label: s.name })),
+              ]}
+            />
+          </div>
 
-        <label style={s.sortLabel} htmlFor="format-filter">Format</label>
-        <CustomSelect
-          id="format-filter"
-          value={formatFilter}
-          onChange={(e) => setFormatFilter(e.target.value)}
-          style={s.filterSelect}
-          options={[
-            { value: "Both", label: "Both" },
-            { value: "PDF", label: "PDF" },
-            { value: "Physical", label: "Physical" },
-          ]}
-        />
+          <div style={s.filterField}>
+            <label style={s.sortLabel} htmlFor="release-filter">Release</label>
+            <CustomSelect
+              id="release-filter"
+              value={releaseFilter}
+              onChange={(e) => setReleaseFilter(e.target.value)}
+              style={s.filterSelect}
+              options={[
+                { value: "", label: "All dates" },
+                ...releaseOptions.map(m => ({ value: m.value, label: m.label })),
+              ]}
+            />
+          </div>
 
-        <label style={s.sortLabel} htmlFor="library-sort">Sort</label>
-        <CustomSelect
-          id="library-sort"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          style={s.sortSelect}
-          options={SORTS.map(sort => ({ value: sort.value, label: sort.label }))}
-        />
-        {(pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both") && (
-          <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setReleaseFilter(""); setFormatFilter("Both"); }}>
-            Clear
-          </button>
-        )}
+          <div style={s.filterField}>
+            <label style={s.sortLabel} htmlFor="format-filter">Format</label>
+            <CustomSelect
+              id="format-filter"
+              value={formatFilter}
+              onChange={(e) => setFormatFilter(e.target.value)}
+              style={s.filterSelect}
+              options={[
+                { value: "Both", label: "Both" },
+                { value: "PDF", label: "PDF" },
+                { value: "Physical", label: "Physical" },
+              ]}
+            />
+          </div>
+
+          <div style={s.filterField}>
+            <label style={s.sortLabel} htmlFor="library-sort">Sort</label>
+            <CustomSelect
+              id="library-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={s.sortSelect}
+              options={SORTS.map(sort => ({ value: sort.value, label: sort.label }))}
+            />
+          </div>
+        </div>
+
+        <div style={s.filterActions}>
+          {(pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both") && (
+            <button type="button" style={s.clearBtn} onClick={() => { setPubFilter(""); setSeriesFilter(""); setReleaseFilter(""); setFormatFilter("Both"); }}>
+              Reset
+            </button>
+          )}
+          <button className="mobile-filter-btn-apply" style={s.applyBtn} onClick={() => setShowFilters(false)}>Done</button>
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 767px) {
+          .filter-panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--bg-surface);
+            z-index: 1000;
+            flex-direction: column;
+            padding: 24px;
+            border-top: 3px solid var(--ink-000);
+            border-radius: 24px 24px 0 0;
+            transform: translateY(100%);
+            transition: transform 0.3s var(--ease-out);
+            display: flex !important;
+            gap: 20px !important;
+          }
+          .filter-panel.filter-panel--open {
+            transform: translateY(0%);
+          }
+          .mobile-filter-header { display: flex !important; }
+          .mobile-filter-btn { display: flex !important; }
+          .mobile-filter-btn-apply { display: block !important; }
+        }
+        @media (min-width: 768px) {
+          .mobile-filter-header { display: none !important; }
+          .mobile-filter-btn { display: none !important; }
+          .mobile-filter-btn-apply { display: none !important; }
+          .filter-panel { transform: none !important; position: static !important; display: flex !important; }
+        }
+      `}</style>
 
       {view === "Publishers" && (
         <div style={s.grid2}>
@@ -265,35 +315,32 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
         </div>
       )}
 
-      {(view === "All" || view === "Unread") && (
+      {["All", "Unread", "PDF", "Needs repair"].includes(view) && (
         <>
           {loading ? (
             <p style={{ color: "var(--text-faint)", padding: 40, textAlign: "center" }}>Loading…</p>
           ) : displayed.length === 0 ? (
             <p style={{ color: "var(--text-soft)", padding: 40, textAlign: "center" }}>
-              {search || pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both" ? "No comics match your filters." : "No comics yet - use Add to add one."}
+              {search || pubFilter || seriesFilter || releaseFilter || formatFilter !== "Both" || view !== "All" ? "No comics match this shelf view." : "No comics yet - use Add to add one."}
             </p>
           ) : (
             <div style={s.grid3}>
               {displayed.map((comic) => (
                 <Link key={comic.id} href={`/comic/${comic.id}`} style={s.card}>
-                  <div style={s.coverWrap}>
-                    {comic.cover_url ? (
-                      <img src={comic.cover_url} alt={comic.title} style={s.cover} loading="lazy" />
-                    ) : (
-                      <div style={{ ...s.cover, ...s.coverPlaceholder }}>No cover</div>
-                    )}
+                  <ComicCover src={comic.cover_url} alt={comic.title}>
                     {comic.read_count > 0 && (
                       <span style={s.readBadge}>{comic.read_count > 1 ? `×${comic.read_count}` : "✓"}</span>
                     )}
                     {hasDigitalPdf(comic) && <span style={s.pdfBadge}>PDF</span>}
                     {comic.has_pdf && !comic.drive_file_id && <span style={s.localPdfBadge}>Device</span>}
+                  </ComicCover>
+                  <div style={s.info}>
+                    <p style={s.series}>{comic.series?.name ?? ""}</p>
+                    <p style={s.issueTitle}>{comic.issue_number ? `#${comic.issue_number}` : comic.title}</p>
+                    <div style={{ marginTop: "auto", paddingTop: 4 }}>
+                      <p style={s.cardMeta}>{[(comic.publisher?.name ?? comic.series?.publisher?.name), formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
+                    </div>
                   </div>
-	                  <div style={s.info}>
-	                    <p style={s.series}>{comic.series?.name ?? ""}</p>
-	                    <p style={s.issueTitle}>{comic.issue_number ? `#${comic.issue_number}` : comic.title}</p>
-	                    <p style={s.cardMeta}>{[(comic.publisher?.name ?? comic.series?.publisher?.name), formatMonth(comic.release_date)].filter(Boolean).join(" · ")}</p>
-	                  </div>
                 </Link>
               ))}
             </div>
@@ -332,6 +379,13 @@ function sortComics(comics, sortBy) {
 
 function hasDigitalPdf(comic) {
   return Boolean(comic.has_pdf);
+}
+
+function needsRepairWork(comic) {
+  return !comic.cover_url
+    || !comic.series?.name
+    || !(comic.publisher?.name || comic.series?.publisher?.name)
+    || (comic.has_pdf && !comic.drive_file_id);
 }
 
 function matchesSearch(comic, search) {
@@ -390,11 +444,20 @@ function formatMonth(date) {
 const s = {
   header:          { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, flexWrap: "nowrap" },
   title:           { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, whiteSpace: "nowrap" },
+  refreshBtn:      { background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" },
   count:           { color: "var(--text-faint)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.04em", whiteSpace: "nowrap" },
   localStatus:     { color: "var(--text-faint)", fontSize: 12, marginTop: -8, marginBottom: 12 },
   search:          { marginBottom: 12, maxWidth: 480 },
   viewBar:         { display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" },
   sortRow:         { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" },
+  filterHeader:    { display: "none", justifyContent: "space-between", alignItems: "center", marginBottom: 8, width: "100%" },
+  filterTitle:     { fontFamily: "var(--font-display)", textTransform: "uppercase", fontSize: 20 },
+  filterClose:     { background: "none", border: "none", color: "var(--text-faint)", fontSize: 24, cursor: "pointer" },
+  filterGrid:      { display: "flex", flexWrap: "wrap", gap: 12, width: "100%" },
+  filterField:     { display: "flex", flexDirection: "column", gap: 6 },
+  filterActions:   { display: "flex", gap: 12, alignItems: "center", width: "100%", marginTop: 8 },
+  filterToggle:    { display: "none", alignItems: "center", gap: 6, padding: "8px 16px 6px", borderRadius: 999, border: "2px solid var(--ink-000)", background: "var(--bg-card)", color: "var(--text)", fontFamily: "var(--font-burst)", textTransform: "uppercase", fontSize: 12, boxShadow: "2px 2px 0 var(--ink-000)" },
+  applyBtn:        { flex: 1, padding: "12px", background: "var(--accent)", color: "#fff", border: "2px solid var(--ink-000)", borderRadius: 10, fontFamily: "var(--font-burst)", textTransform: "uppercase", fontSize: 16, boxShadow: "3px 3px 0 var(--ink-000)" },
   sortLabel:       { color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
   sortSelect:      { width: 190, minHeight: 40 },
   filterSelect:    { width: 180, minHeight: 40 },
@@ -419,19 +482,20 @@ const s = {
   grid2:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(190px, 100%), 1fr))", gap: 12 },
   grid3:           { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(clamp(172px, 24vw, 260px), 1fr))", gap: "clamp(12px, 1.6vw, 20px)" },
 
-  pubCard:         { width: "100%", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left", font: "inherit" },
-  pubCardActive:   { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent)" },
+  pubCard:         {
+    width: "100%", background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 20, cursor: "pointer", display: "block", textAlign: "left", font: "inherit", position: "relative",
+    boxShadow: "2px 2px 0 var(--ink-000), 4px 4px 0 var(--ink-400), 6px 6px 0 var(--ink-000)",
+    transition: "transform 150ms var(--ease-out)",
+  },
+  pubCardActive:   { transform: "translate(-2px, -2px)", borderColor: "var(--accent)" },
   pubName:         { fontWeight: 600, fontSize: 15, color: "var(--text)" },
   pubCount:        { display: "block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" },
 
-  card:            { background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", display: "block" },
-  coverWrap:       { position: "relative", paddingTop: "148%" },
-  cover:           { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" },
-  coverPlaceholder:{ background: "var(--bg-surface)", color: "var(--text-faint)", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
+  card:            { background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" },
   readBadge:       { position: "absolute", top: 6, right: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
   pdfBadge:        { position: "absolute", bottom: 6, right: 6, background: "var(--hero-gold)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
   localPdfBadge:   { position: "absolute", bottom: 6, left: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
-  info:            { padding: "8px 10px 10px" },
+  info:            { padding: "10px", flex: 1, display: "flex", flexDirection: "column" },
   series:          { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
   issueTitle:      { color: "var(--text)", fontSize: 13, fontWeight: 600 },
   cardMeta:        { color: "var(--text-faint)", fontSize: 10, marginTop: 3 },

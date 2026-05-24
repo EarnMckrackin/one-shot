@@ -1,31 +1,35 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
+import { useComics } from "../../../hooks/useComics";
 
 const MODES = [
-  { id: "catchup",     label: "Catch Me Up",   desc: "Show recent reading checkpoints from your logs" },
-  { id: "keyissue",    label: "Key Issues",     desc: "Find historically significant issues in your collection" },
-  { id: "connections", label: "How It Connects", desc: "Map crossovers, shared characters, and reading order" },
+  { id: "catchup",   label: "Catch Up",    desc: "Start from your recent reading logs" },
+  { id: "nextreads", label: "Next Reads",   desc: "Pick unread issues with collection context" },
+  { id: "fixgaps",   label: "Fix Gaps",     desc: "Prioritize missing issues and repairs" },
+  { id: "keyissue",  label: "Key Issues",   desc: "Summarize collection signals already available" },
 ];
 
-const STARTERS = {
-  catchup:     ["What happened in the last arc of X-Men I read?", "Recap Daredevil for me — I just finished Born Again.", "Where did I leave off in Hickman's Avengers?"],
-  keyissue:    ["Which issues in my collection are key issues?", "Do I own any first appearances?", "What are the most valuable comics in my library?"],
-  connections: ["How does House of M connect to what I've read?", "What should I read after Secret Invasion?", "Which series in my library share characters?"],
-};
-
 export default function CompassClient() {
-  const [mode, setMode]       = useState("connections");
+  const searchParams = useSearchParams();
+  const { comics } = useComics();
+  const initialMode = searchParams.get("mode");
+  const [mode, setMode]       = useState(MODES.some((m) => m.id === initialMode) ? initialMode : "catchup");
   const [history, setHistory] = useState([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [hasComics, setHasComics] = useState(null);
-  const bottomRef             = useRef(null);
+  const chatBoxRef            = useRef(null);
   const inputRef              = useRef(null);
+  const collectionContext     = buildCollectionContext(comics);
+  const starters              = buildStarters(mode, collectionContext);
+  const hasCollectionSignals  = comics.length > 0 || hasComics === true;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!chatBoxRef.current) return;
+    chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
   }, [history]);
 
   useEffect(() => {
@@ -47,7 +51,7 @@ export default function CompassClient() {
     const res = await fetch("/api/compass", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, message: msg, history }),
+      body: JSON.stringify({ mode, message: msg, history, collectionContext }),
     });
 
     if (!res.ok || !res.body) {
@@ -82,8 +86,17 @@ export default function CompassClient() {
 
   return (
     <div style={s.page}>
-      <h1 style={s.title}>Continuity Compass</h1>
-      <p style={s.sub}>Your local reading-history companion. External AI calls are disabled.</p>
+      <h1 style={s.title}>Resurface your next read</h1>
+      <p style={s.sub}>
+        Compass with an agenda: unread issues, logged reads, pull-list context, and collection gaps in one guided flow.
+      </p>
+
+      <div style={s.contextStrip}>
+        <span style={s.contextPill}>{collectionContext.unreadCount} unread</span>
+        <span style={s.contextPill}>{collectionContext.pdfReadyCount} PDF-ready</span>
+        <span style={s.contextPill}>{collectionContext.gapCount} gaps</span>
+        <span style={s.contextPill}>{collectionContext.repairCount} repairs</span>
+      </div>
 
       {/* Mode selector */}
       <div style={s.modeRow}>
@@ -96,20 +109,20 @@ export default function CompassClient() {
       </div>
 
       {/* Chat window */}
-      <div style={s.chatBox}>
-        {history.length === 0 && hasComics === false && (
+      <div style={s.chatBox} ref={chatBoxRef}>
+        {history.length === 0 && !hasCollectionSignals && (
           <div style={s.empty}>
             <p style={s.emptyHead}>No reads logged yet</p>
-            <p style={s.emptySub}>Log some comics first — Compass learns from your reading history and can only give spoiler-safe answers once it knows what you've read.</p>
-            <InkButton href="/library" size="lg">Go add comics</InkButton>
+            <p style={s.emptySub}>Resurface can still use unread issues and gaps, but catch-up gets better after you log a few reads.</p>
+            <InkButton href="/library" size="lg">Open library</InkButton>
           </div>
         )}
 
-        {history.length === 0 && hasComics === true && (
+        {history.length === 0 && hasCollectionSignals && (
           <div style={s.empty}>
-            <p style={s.emptyHead}>Ask anything about your collection</p>
+            <p style={s.emptyHead}>Start from a real collection signal</p>
             <div style={s.starters}>
-              {STARTERS[mode].map((q) => (
+              {starters.map((q) => (
                 <button key={q} style={s.starterBtn} onClick={() => send(q)}>{q}</button>
               ))}
             </div>
@@ -122,7 +135,6 @@ export default function CompassClient() {
             <p style={s.bubbleText}>{msg.content || (loading && i === history.length - 1 ? <span style={s.cursor}>▌</span> : "")}</p>
           </div>
         ))}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -132,7 +144,7 @@ export default function CompassClient() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Ask about your comics…"
+          placeholder="Ask Resurface what to do next..."
           rows={1}
           style={s.textarea}
           className="ink-input"
@@ -141,15 +153,111 @@ export default function CompassClient() {
           {loading ? "…" : "Send"}
         </InkButton>
       </div>
-      <p style={s.hint}>Enter to send · Shift+Enter for new line · Compass uses your saved reading logs</p>
+      <p style={s.hint}>Enter to send · Shift+Enter for new line · Resurface uses saved library and reading-log signals</p>
     </div>
   );
+}
+
+function buildCollectionContext(comics) {
+  const unread = comics.filter((comic) => (comic.read_count ?? 0) === 0);
+  const pdfReady = unread.filter((comic) => comic.has_pdf);
+  const repair = comics.filter((comic) =>
+    !comic.cover_url
+    || !comic.series?.name
+    || !(comic.publisher?.name || comic.series?.publisher?.name)
+    || (comic.has_pdf && !comic.drive_file_id)
+  );
+  const gaps = findSeriesGaps(comics);
+
+  return {
+    unreadCount: unread.length,
+    pdfReadyCount: pdfReady.length,
+    repairCount: repair.length,
+    gapCount: gaps.reduce((sum, row) => sum + row.gaps.length, 0),
+    topUnread: unread.slice(0, 5).map(compactComic),
+    topPdfReady: pdfReady.slice(0, 5).map(compactComic),
+    topRepairs: repair.slice(0, 5).map(compactComic),
+    topGaps: gaps.slice(0, 5).map((row) => ({ series: row.name, gaps: row.gaps.slice(0, 12) })),
+  };
+}
+
+function buildStarters(mode, context) {
+  const topUnread = context.topUnread[0];
+  const topGap = context.topGaps[0];
+
+  if (mode === "catchup") {
+    return [
+      topUnread ? `Catch me up before I read ${topUnread.label}.` : "Catch me up from my latest logged reads.",
+      "Where did I leave off?",
+      "Give me a spoiler-safe agenda for tonight.",
+    ];
+  }
+
+  if (mode === "nextreads") {
+    return [
+      "Pick my next 3 reads from unread issues.",
+      context.topPdfReady[0] ? "Prioritize unread PDF-ready issues." : "Find the cleanest next read from my shelf.",
+      "What should I read if I only have 30 minutes?",
+    ];
+  }
+
+  if (mode === "fixgaps") {
+    return [
+      topGap ? `Which ${topGap.series} gaps should I fix first?` : "Which collection repairs should I do first?",
+      "Show missing issues that block reading order.",
+      "Find metadata or PDF repairs worth doing now.",
+    ];
+  }
+
+  return [
+    "Which issues in my collection look most important?",
+    "Which series have the strongest reading history?",
+    "What collection signals can you summarize without outside lookup?",
+  ];
+}
+
+function compactComic(comic) {
+  return {
+    id: comic.id,
+    label: `${comic.series?.name ?? comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`,
+    series: comic.series?.name ?? comic.title,
+    issue: comic.issue_number,
+    hasPdf: Boolean(comic.has_pdf),
+  };
+}
+
+function findSeriesGaps(comics) {
+  const bySeries = new Map();
+  for (const comic of comics) {
+    if (!comic.series?.id || !comic.series?.name) continue;
+    if (!bySeries.has(comic.series.id)) bySeries.set(comic.series.id, { name: comic.series.name, issues: [] });
+    bySeries.get(comic.series.id).issues.push(comic);
+  }
+
+  return [...bySeries.values()]
+    .map((row) => ({ ...row, gaps: findGaps(row.issues) }))
+    .filter((row) => row.gaps.length > 0)
+    .sort((a, b) => b.gaps.length - a.gaps.length);
+}
+
+function findGaps(issues) {
+  const nums = issues
+    .map((comic) => parseFloat(comic.issue_number))
+    .filter((n) => Number.isInteger(n))
+    .sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 0; i < nums.length - 1; i++) {
+    for (let missing = nums[i] + 1; missing < nums[i + 1]; missing++) gaps.push(missing);
+  }
+  return gaps;
 }
 
 const s = {
   page:          { maxWidth: "var(--content-max-md)", display: "flex", flexDirection: "column", height: "calc(100dvh - clamp(88px, 12vh, 124px))" },
   title:         { fontFamily: "var(--font-serif)", fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 },
   sub:           { color: "var(--text-faint)", fontSize: 14, marginBottom: 20 },
+  contextStrip:  { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  contextPill:   { color: "var(--ink-000)", background: "var(--hero-gold)", border: "1.5px solid var(--ink-000)", borderRadius: 999, padding: "4px 10px 3px", boxShadow: "1px 1px 0 var(--ink-000)", fontFamily: "var(--font-burst)", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 12 },
 
   modeRow:       { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" },
   modeBtn:       { flex: 1, minWidth: 180, background: "var(--bg-card)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 },

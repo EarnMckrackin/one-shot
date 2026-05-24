@@ -9,6 +9,7 @@ import InkButton from "../../../components/InkButton";
 export default function HomeClient() {
   const { comics, loading, connectionState, lastSynced, refresh } = useComics();
   const [pullCount, setPullCount] = useState(null);
+  const [spotlightFact, setSpotlightFact] = useState(COMIC_FACTS[0]);
 
   useEffect(() => {
     supabase
@@ -17,6 +18,10 @@ export default function HomeClient() {
       .eq("active", true)
       .then(({ count }) => setPullCount(count ?? 0))
       .catch(() => setPullCount(null));
+  }, []);
+
+  useEffect(() => {
+    setSpotlightFact(COMIC_FACTS[Math.floor(Math.random() * COMIC_FACTS.length)]);
   }, []);
 
   const summary = useMemo(() => buildSummary(comics), [comics]);
@@ -49,15 +54,16 @@ export default function HomeClient() {
 
       <section style={s.hero} className="home-hero">
         <div>
-          <p style={s.kicker}>Returning reader command center</p>
-          <h1 style={s.title}>What changed since your last read?</h1>
-          <p style={s.sub}>
-            Start fast when you know the task, or let Resurface turn your library signals into a reading agenda.
-          </p>
+          <h1 style={s.title}>Welcome to OneShot!</h1>
+          <div style={s.factBox}>
+            <p style={s.kicker}>{spotlightFact.label}</p>
+            <p style={s.sub}>{spotlightFact.detail}</p>
+          </div>
         </div>
         <div style={s.heroActions} className="home-actions">
           <InkButton href="/scan" size="lg">Quick add</InkButton>
           <InkButton href="/resurface" variant="cyan" size="lg">Resurface me</InkButton>
+          <InkButton href="/releases?week=next" variant="gold" size="lg">Coming soon</InkButton>
         </div>
       </section>
 
@@ -149,6 +155,41 @@ export default function HomeClient() {
     </div>
   );
 }
+
+const COMIC_FACTS = [
+  {
+    label: "Comic book fact",
+    detail: "Superman first appeared in Action Comics #1 in 1938, helping define the modern superhero format.",
+  },
+  {
+    label: "Character detail",
+    detail: "Batman debuted in Detective Comics #27 in 1939, originally styled as a pulp-inspired mystery vigilante.",
+  },
+  {
+    label: "Comic book fact",
+    detail: "Marvel's Fantastic Four #1 launched in 1961 and helped establish a more character-driven superhero era.",
+  },
+  {
+    label: "Character detail",
+    detail: "Storm was one of the first major Black women superheroes in mainstream comics when she joined the X-Men in 1975.",
+  },
+  {
+    label: "Comic book fact",
+    detail: "The direct market changed comics retail by shifting many sales from newsstands to dedicated comic shops.",
+  },
+  {
+    label: "Character detail",
+    detail: "Miles Morales first appeared in Ultimate Fallout #4 in 2011 before becoming one of Marvel's key Spider-heroes.",
+  },
+  {
+    label: "Comic book fact",
+    detail: "The Comics Code Authority shaped mainstream U.S. comic publishing for decades after its introduction in 1954.",
+  },
+  {
+    label: "Character detail",
+    detail: "Wonder Woman debuted in 1941 and was created by William Moulton Marston with artist H. G. Peter.",
+  },
+];
 
 function Metric({ label, value, note, tone }) {
   return (
@@ -285,6 +326,7 @@ const s = {
   hero: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 18, alignItems: "end", background: "var(--bg-surface)", backgroundImage: "var(--halftone-dots)", backgroundSize: "var(--halftone-size)", border: "3px solid var(--ink-000)", borderRadius: 14, padding: "clamp(18px, 3vw, 30px)", boxShadow: "5px 5px 0 var(--ink-000)" },
   kicker: { color: "var(--hero-gold)", fontFamily: "var(--font-burst)", textTransform: "uppercase", letterSpacing: "0.12em", fontSize: 13, marginBottom: 6 },
   title: { fontFamily: "var(--font-serif)", fontSize: "clamp(34px, 5vw, 64px)", lineHeight: 1, letterSpacing: "0", maxWidth: 760 },
+  factBox: { marginTop: 14, maxWidth: 720 },
   sub: { color: "var(--text-soft)", fontSize: 15, lineHeight: 1.6, maxWidth: 650, marginTop: 12 },
   heroActions: { display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" },
   metrics: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 },

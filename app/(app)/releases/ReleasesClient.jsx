@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
 import CustomSelect from "../../../components/CustomSelect";
@@ -18,6 +19,7 @@ const normalize = (s) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const DEFAULT_PRICE = 3.99;
 
 export default function ReleasesClient() {
+  const searchParams = useSearchParams();
   const [releases, setReleases]       = useState([]);
   const [pullVolumeSet, setPullSet]   = useState(new Set());
   const [seriesIdMap, setSeriesIdMap] = useState({});
@@ -36,6 +38,14 @@ export default function ReleasesClient() {
 
   const wednesday = getWednesday(weekOffset);
   const weekLabel = formatWeekLabel(wednesday);
+
+  useEffect(() => {
+    const week = searchParams.get("week");
+    const offset = Number(searchParams.get("weekOffset"));
+    if (week === "next") setOffset(1);
+    else if (week === "current") setOffset(0);
+    else if (Number.isInteger(offset)) setOffset(offset);
+  }, [searchParams]);
 
   useEffect(() => {
     setLoading(true);

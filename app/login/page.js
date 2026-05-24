@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase-browser";
 
 export default function LoginPage() {
@@ -10,6 +10,15 @@ export default function LoginPage() {
   const [error, setError]       = useState(null);
   const [status, setStatus]     = useState("Ready");
   const [focused, setFocused]   = useState(null);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const message = searchParams.get("message");
+    if (!message) return;
+
+    setStatus("Sign in link failed");
+    setError(message);
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -35,7 +44,7 @@ export default function LoginPage() {
       }
 
       setStatus("Contacting Supabase...");
-      const redirectTo = `${location.origin}/api/auth/callback?next=/home`;
+      const redirectTo = `${location.origin}/api/auth/confirm?next=/home`;
       const authRequest = mode === "signup"
         ? supabase.auth.signUp({
             email: trimmedEmail,

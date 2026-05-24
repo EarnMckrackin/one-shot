@@ -19,7 +19,7 @@ export async function POST(request) {
   }
 
   const supabase = await createClient();
-  const redirectTo = `${origin}/api/auth/callback?next=/home`;
+  const redirectTo = `${origin}/api/auth/confirm?next=/home`;
   const { error } = mode === "signup"
     ? await supabase.auth.signUp({
         email,

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 
 const LINKS = [
+  { href: "/home",      label: "Home"          },
   { href: "/library",   label: "Library"       },
   { href: "/scan",      label: "Add"           },
   { href: "/releases",  label: "Releases"      },
@@ -12,7 +13,7 @@ const LINKS = [
   { href: "/gaps",      label: "Gap Tracker"   },
   { href: "/arcs",      label: "Reading Order" },
   { href: "/stats",     label: "Stats"         },
-  { href: "/compass",   label: "Compass"       },
+  { href: "/resurface", label: "Resurface"     },
 ];
 
 function HamburgerIcon() {
@@ -48,7 +49,7 @@ function CollapseIcon({ collapsed }) {
 function SidebarContent({ pathname, onClose }) {
   return (
     <>
-      <Link href="/library" style={s.brandWrap} onClick={onClose}>
+      <Link href="/home" style={s.brandWrap} onClick={onClose}>
         <div style={s.brandLockup}>
           <span style={s.brandOne}>ONE</span>
           <span style={s.brandShot}>SHOT</span>
@@ -107,7 +108,7 @@ export default function Nav() {
 
         {/* Brand — hidden when collapsed */}
         {!collapsed && (
-          <Link href="/library" style={s.brandWrap}>
+          <Link href="/home" style={s.brandWrap}>
             <div style={s.brandLockup}>
               <span style={s.brandOne}>ONE</span>
               <span style={s.brandShot}>SHOT</span>
@@ -187,10 +188,13 @@ export default function Nav() {
           .mobile-topbar { display: none !important; }
           .mobile-drawer { display: none !important; }
           .desktop-nav   { display: flex !important; }
-          .main-content  { margin-left: ${sidebarWidth}px !important; transition: margin-left 250ms ease; }
+          .main-content  { margin-left: ${sidebarWidth}px !important; transition: margin-left 250ms ease; padding-bottom: 24px !important; }
         }
         @media (max-width: 767px) {
-          .main-content { padding-top: calc(60px + env(safe-area-inset-top, 0px)) !important; }
+          .main-content {
+            padding-top: calc(60px + env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+          }
         }
       `}</style>
     </>
@@ -379,4 +383,5 @@ const s = {
     background: "rgba(0,0,0,0.45)",
     zIndex:     250,
   },
+
 };

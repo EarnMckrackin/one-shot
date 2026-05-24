@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase-browser";
 import InkButton from "../../../components/InkButton";
+import ComicCover from "../../../components/ComicCover";
 import { CapacitorPluginMlKitTextRecognition } from "@pantrist/capacitor-plugin-ml-kit-text-recognition";
 import { saveLocalPdf } from "../../../lib/local-pdf-store";
 import { upsertLocalLibraryComic } from "../../../lib/local-data-store";
@@ -33,6 +34,7 @@ export default function ScanClient() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const replaceId    = searchParams.get("replace");
+  const requestedMode = searchParams.get("mode");
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [mode, setMode]         = useState("Search");
@@ -51,6 +53,8 @@ export default function ScanClient() {
   const [localCover, setLocalCover] = useState(null);
   const [ocrText, setOcrText] = useState("");
   const [ocrStatus, setOcrStatus] = useState("");
+  const [showOcrText, setShowOcrText] = useState(false);
+  const [addedComic, setAddedComic] = useState(null);
 
   useEffect(() => {
     try {
@@ -62,6 +66,10 @@ export default function ScanClient() {
       if (saved.ocrText) setOcrText(saved.ocrText);
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (MODES.includes(requestedMode)) setMode(requestedMode);
+  }, [requestedMode]);
 
   function selectedPublisher() {
     return publisherChoice === "Other" ? customPublisher.trim() : publisherChoice;
@@ -125,6 +133,7 @@ export default function ScanClient() {
   }
 
   async function saveLocalCover(dataUrl) {
+    setAddedComic(null);
     setLocalCover(dataUrl);
     saveLocalAddState({ coverDataUrl: dataUrl });
     setResults([]);
@@ -145,8 +154,11 @@ export default function ScanClient() {
       const query = buildQueryFromOcr(cleaned);
       setOcrText(cleaned);
       saveLocalAddState({ ocrText: cleaned, query });
-      if (query && !manualQuery.trim()) setManualQuery(query);
-      setOcrStatus(cleaned ? "Text found. Review the search before running it." : "No readable cover text found. Try manual search.");
+      if (query && !manualQuery.trim()) {
+        setManualQuery(query);
+        autoSearch(query);
+      }
+      setOcrStatus(cleaned ? "Cover text read. Searching..." : "No readable cover text found. Try manual search.");
     } catch {
       setOcrStatus("OCR runs in the Android/iOS app. Use manual search in this browser.");
     } finally {
@@ -154,9 +166,31 @@ export default function ScanClient() {
     }
   }
 
+  async function autoSearch(query) {
+    if (!query?.trim()) return;
+    setSearching(true);
+    setResults([]);
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: query.trim(), publisher: selectedPublisher() || undefined }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResults(data.results ?? []);
+      setMode("Search");
+    } catch (e) {
+      setOcrStatus("Search failed: " + e.message);
+    } finally {
+      setSearching(false);
+    }
+  }
+
   async function searchManually(e) {
     e.preventDefault();
     if (!manualQuery.trim()) return;
+    setAddedComic(null);
     setSearching(true);
     setResults([]);
     try {
@@ -256,7 +290,12 @@ export default function ScanClient() {
       const saved = await fetchLibraryComic(comic.id);
       if (saved) upsertLocalLibraryComic(saved);
       saveLocalAddState({ query: "", coverDataUrl: null, ocrText: "" });
-      router.push(`/comic/${comic.id}`);
+      setAddedComic({ id: comic.id, result, seriesName: result.series_name });
+      setManualQuery("");
+      setLocalCover(null);
+      setOcrText("");
+      setOcrStatus("");
+      setResults([]);
     } catch (e) {
       alert("Error adding comic: " + e.message);
     } finally {
@@ -336,11 +375,24 @@ export default function ScanClient() {
     <div style={s.page}>
       {replaceId && <Link href={`/comic/${replaceId}`} style={{ color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 16 }}>← Back to comic</Link>}
       <h1 style={s.title}>{replaceId ? "Re-identify Cover" : "Add Comics"}</h1>
+      {replaceId && (
+        <div style={s.replacePanel}>
+          <p style={s.replaceTitle}>Repair mode</p>
+          <p style={s.hint}>Matches selected here update the existing issue instead of creating a duplicate.</p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: rotate(-4deg) scale(1); }
+          50% { transform: rotate(-2deg) scale(1.1); }
+        }
+      `}</style>
 
       <div style={s.modeBar}>
         {MODES.map((m) => (
           <button key={m} style={{ ...s.chip, ...(mode === m ? s.chipActive : {}) }}
-            onClick={() => { setMode(m); setResults([]); setExtracted(null); if (streaming) stopCamera(); }}>
+            onClick={() => { setMode(m); setResults([]); setExtracted(null); setAddedComic(null); if (streaming) stopCamera(); }}>
             {m}
           </button>
         ))}
@@ -352,6 +404,30 @@ export default function ScanClient() {
         onPublisherChoice={setPublisherChoice}
         onCustomPublisher={setCustomPublisher}
       />
+
+      <DraftPanel
+        mode={mode}
+        query={manualQuery}
+        publisher={selectedPublisher()}
+        hasCover={Boolean(localCover)}
+        ocrText={ocrText}
+        pdfFiles={pdfFiles}
+        replaceId={replaceId}
+      />
+
+      {addedComic && (
+        <div style={s.nextPanel}>
+          <p style={s.nextTitle}>Added to library</p>
+          <p style={s.nextMeta}>{addedComic.result.series_name || addedComic.result.title}{addedComic.result.issue_number ? ` #${addedComic.result.issue_number}` : ""}</p>
+          <div style={s.nextActions}>
+            <InkButton href={`/comic/${addedComic.id}`} size="sm">Open issue</InkButton>
+            <InkButton href={`/comic/${addedComic.id}`} variant="ghost" size="sm">Attach PDF</InkButton>
+            <InkButton href={`/comic/${addedComic.id}`} variant="ghost" size="sm">Mark read</InkButton>
+            <InkButton href="/pull-list" variant="gold" size="sm">Pull list</InkButton>
+            <InkButton href="/resurface?mode=catchup" variant="cyan" size="sm">Resurface arc</InkButton>
+          </div>
+        </div>
+      )}
 
       {localCover && (
         <div style={s.localCoverBox}>
@@ -366,25 +442,39 @@ export default function ScanClient() {
 
       {ocrText && (
         <div style={s.ocrBox}>
-          <p style={s.manualLabel}>Cover text</p>
-          <textarea
-            className="ink-input"
-            value={ocrText}
-            onChange={(e) => { setOcrText(e.target.value); saveLocalAddState({ ocrText: e.target.value }); }}
-            rows={4}
-            style={s.ocrText}
-          />
-          <InkButton
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const query = buildQueryFromOcr(ocrText);
-              setManualQuery(query);
-              saveLocalAddState({ query });
-            }}
-          >
-            Use for Search
-          </InkButton>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showOcrText ? 10 : 0 }}>
+            <p style={s.manualLabel}>{showOcrText ? "Cover text (RAW)" : "Text found on cover"}</p>
+            <button
+              style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, fontFamily: "var(--font-burst)", textTransform: "uppercase", cursor: "pointer" }}
+              onClick={() => setShowOcrText(!showOcrText)}
+            >
+              {showOcrText ? "Hide Raw Text" : "View Raw Text"}
+            </button>
+          </div>
+
+          {showOcrText && (
+            <>
+              <textarea
+                className="ink-input"
+                value={ocrText}
+                onChange={(e) => { setOcrText(e.target.value); saveLocalAddState({ ocrText: e.target.value }); }}
+                rows={4}
+                style={s.ocrText}
+              />
+              <InkButton
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const query = buildQueryFromOcr(ocrText);
+                  setManualQuery(query);
+                  saveLocalAddState({ query });
+                  autoSearch(query);
+                }}
+              >
+                Re-scan for Search
+              </InkButton>
+            </>
+          )}
         </div>
       )}
 
@@ -469,9 +559,12 @@ export default function ScanClient() {
         </form>
       )}
 
-      {/* Scanning spinner */}
-      {scanning && (
-        <p style={{ color: "var(--text-soft)", textAlign: "center", padding: 32 }}>{ocrStatus || "Reading cover text..."}</p>
+      {/* Scanning/Searching spinner */}
+      {(scanning || searching) && (
+        <div style={s.loadingContainer}>
+          <div style={s.kraak}>SEARCHING!</div>
+          <p style={{ color: "var(--text-soft)", textAlign: "center" }}>{ocrStatus || "Consulting the archives..."}</p>
+        </div>
       )}
 
       {/* Extracted info */}
@@ -491,8 +584,10 @@ export default function ScanClient() {
           <div style={s.resultsList}>
             {results.map((r, i) => (
               <button key={r.comicvine_id ?? r.metron_id ?? i} style={s.resultRow} onClick={() => addComicToLibrary(r)} disabled={adding}>
-                {r.cover_url && <img src={r.cover_url} alt={r.title} style={s.resultCover} />}
-                <div style={{ textAlign: "left" }}>
+                <div style={s.resultCoverWrap}>
+                  <ComicCover src={r.cover_url} alt={r.title} size="sm" />
+                </div>
+                <div style={{ textAlign: "left", flex: 1 }}>
                   <p style={s.resultSeries}>{r.series_name}</p>
                   <p style={s.resultTitle}>{r.title} {r.issue_number ? `#${r.issue_number}` : ""}</p>
                   <p style={s.resultMeta}>
@@ -522,9 +617,34 @@ export default function ScanClient() {
               {searching ? "..." : "Search"}
             </InkButton>
           </form>
-          <InkButton variant="ghost" size="sm" onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); }}>Start over</InkButton>
+          <InkButton variant="ghost" size="sm" onClick={() => { setResults([]); setExtracted(null); setManualQuery(""); setAddedComic(null); }}>Start over</InkButton>
         </div>
       )}
+    </div>
+  );
+}
+
+function DraftPanel({ mode, query, publisher, hasCover, ocrText, pdfFiles, replaceId }) {
+  const rows = [
+    ["Mode", replaceId ? "Replacement" : mode],
+    ["Query", query || "No search query yet"],
+    ["Publisher", publisher || "Auto / Unknown"],
+    ["Cover", hasCover ? "Staged on this device" : "No cover staged"],
+    ["OCR", ocrText ? `${ocrText.split(/\r?\n/).filter(Boolean).length} text lines saved` : "No OCR text saved"],
+    ["PDF", pdfFiles.length ? `${pdfFiles.length} selected` : "No PDF selected"],
+  ];
+
+  return (
+    <div style={s.draftPanel}>
+      <p style={s.draftTitle}>Draft state</p>
+      <div style={s.draftGrid}>
+        {rows.map(([label, value]) => (
+          <div key={label} style={s.draftItem}>
+            <span style={s.draftLabel}>{label}</span>
+            <span style={s.draftValue}>{value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -594,6 +714,8 @@ function titleFromPdfName(filename) {
 const s = {
   page:          { maxWidth: "var(--content-max-sm)", margin: "0 auto" },
   title:         { fontSize: 32, fontFamily: "var(--font-serif)", fontWeight: 700, marginBottom: 20, letterSpacing: "-0.02em" },
+  replacePanel:  { background: "var(--bg-surface)", border: "2px solid var(--hero-gold)", borderRadius: 12, padding: 14, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
+  replaceTitle:  { color: "var(--hero-gold)", fontFamily: "var(--font-burst)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 14, marginBottom: 4 },
   modeBar:       { display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" },
   chip:          { padding: "8px 16px 6px", borderRadius: 999, background: "var(--bg-card)", border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", color: "var(--text-soft)", fontSize: 13, cursor: "pointer", fontFamily: "var(--font-burst)", letterSpacing: "0.1em", textTransform: "uppercase" },
   chipActive:    { background: "var(--accent)", color: "#fff", transform: "rotate(-1.5deg)", backgroundImage: "var(--hatch-dark)" },
@@ -601,6 +723,16 @@ const s = {
   publisherLabel:{ color: "var(--hero-gold)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "var(--font-burst)" },
   publisherSelect: { minHeight: 42 },
   publisherCustom: { gridColumn: "2 / 3" },
+  draftPanel:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 14, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
+  draftTitle:    { color: "var(--hero-gold)", fontFamily: "var(--font-burst)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 14, marginBottom: 10 },
+  draftGrid:     { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 },
+  draftItem:     { background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", minWidth: 0 },
+  draftLabel:    { display: "block", color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 },
+  draftValue:    { display: "block", color: "var(--text)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  nextPanel:     { background: "var(--bg-surface)", border: "3px solid var(--ink-000)", borderRadius: 14, padding: 16, marginBottom: 20, boxShadow: "4px 4px 0 var(--ink-000)" },
+  nextTitle:     { color: "var(--hero-cyan)", fontFamily: "var(--font-burst)", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 18 },
+  nextMeta:      { color: "var(--text-soft)", fontSize: 14, marginTop: 4, marginBottom: 12 },
+  nextActions:   { display: "flex", gap: 8, flexWrap: "wrap" },
   localCoverBox: { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 10, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
   localCoverImg: { width: "clamp(54px, 7vw, 84px)", aspectRatio: "2/3", objectFit: "cover", borderRadius: 6, flexShrink: 0 },
   localCoverMeta: { flex: 1, minWidth: 0 },
@@ -608,6 +740,15 @@ const s = {
   clearLocalBtn: { background: "transparent", border: "1.5px solid var(--ink-000)", borderRadius: 8, color: "var(--text-faint)", cursor: "pointer", padding: "6px 10px", fontSize: 12 },
   ocrBox:        { background: "var(--bg-surface)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 14, marginBottom: 18, boxShadow: "2px 2px 0 var(--ink-000)" },
   ocrText:       { width: "100%", resize: "vertical", marginBottom: 10, fontFamily: "var(--font-mono)", fontSize: 12 },
+  loadingContainer: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", gap: 20 },
+  kraak: {
+    fontFamily: "var(--font-burst)",
+    fontSize: 48,
+    color: "var(--hero-gold)",
+    textShadow: "4px 4px 0 var(--ink-000), -2px -2px 0 var(--accent)",
+    transform: "rotate(-4deg) scale(1.1)",
+    animation: "pulse 1.5s infinite ease-in-out",
+  },
   cameraSection: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 },
   viewfinder:    { width: "100%", maxWidth: "min(420px, 72vw)", aspectRatio: "2/3", background: "var(--bg-surface)", borderRadius: 12, overflow: "hidden", position: "relative", border: "2px solid var(--ink-000)", boxShadow: "4px 4px 0 var(--ink-000)" },
   video:         { width: "100%", height: "100%", objectFit: "cover" },
@@ -625,8 +766,8 @@ const s = {
   extractedValue: { color: "var(--text)", fontWeight: 600 },
   resultsHeader: { fontSize: 16, fontWeight: 700, marginBottom: 12, color: "var(--text-soft)", fontFamily: "var(--font-display)", letterSpacing: "0.03em", textTransform: "uppercase" },
   resultsList:   { display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 },
-  resultRow:     { display: "flex", gap: 14, background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer", textAlign: "left", padding: "10px 14px 10px 0", alignItems: "center" },
-  resultCover:   { width: "clamp(60px, 8vw, 96px)", aspectRatio: "2/3", objectFit: "cover", flexShrink: 0 },
+  resultRow:     { display: "flex", gap: 14, background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", border: "2px solid var(--ink-000)", boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer", textAlign: "left", padding: "10px 14px", alignItems: "center" },
+  resultCoverWrap: { width: "clamp(60px, 8vw, 96px)", flexShrink: 0 },
   resultSeries:  { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
   resultTitle:   { color: "var(--text)", fontSize: 15, fontWeight: 600, marginTop: 2 },
   resultMeta:    { color: "var(--text-faint)", fontSize: 12, marginTop: 4 },

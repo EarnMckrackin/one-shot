@@ -62,7 +62,7 @@ export default function HomeClient() {
         </div>
         <div style={s.heroActions} className="home-actions">
           <InkButton href="/scan" size="lg">Quick add</InkButton>
-          <InkButton href="/resurface" variant="cyan" size="lg">Resurface me</InkButton>
+          <InkButton href="/resurface" variant="cyan" size="lg">What's Next</InkButton>
           <InkButton href="/releases?week=next" variant="gold" size="lg">Coming soon</InkButton>
         </div>
       </section>

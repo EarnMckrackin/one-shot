@@ -17,7 +17,7 @@ export async function POST(request) {
     ? await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${origin}/api/auth/callback` },
+        options: { emailRedirectTo: `${origin}/api/auth/callback?next=/home` },
       })
     : await supabase.auth.signInWithPassword({ email, password });
 
@@ -25,7 +25,7 @@ export async function POST(request) {
     return errorResponse(error.message);
   }
 
-  return NextResponse.redirect(new URL("/library", request.url), 303);
+  return NextResponse.redirect(new URL("/home", request.url), 303);
 }
 
 function errorResponse(message) {

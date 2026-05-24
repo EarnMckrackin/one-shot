@@ -26,7 +26,7 @@ export default function LoginPage() {
         ? supabase.auth.signUp({
             email: email.trim(),
             password,
-            options: { emailRedirectTo: `${location.origin}/api/auth/callback` },
+            options: { emailRedirectTo: `${location.origin}/api/auth/callback?next=/home` },
           })
         : supabase.auth.signInWithPassword({ email: email.trim(), password });
 
@@ -38,8 +38,8 @@ export default function LoginPage() {
         return;
       }
 
-      setStatus("Signed in. Opening library...");
-      window.location.assign("/library");
+      setStatus("Signed in. Opening home...");
+      window.location.assign("/home");
     } catch (err) {
       setStatus("Sign in failed");
       setError(err?.message || "Unable to sign in. Check your connection and try again.");

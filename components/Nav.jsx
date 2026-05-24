@@ -13,7 +13,7 @@ const LINKS = [
   { href: "/gaps",      label: "Gap Tracker"   },
   { href: "/arcs",      label: "Reading Order" },
   { href: "/stats",     label: "Stats"         },
-  { href: "/resurface", label: "Resurface"     },
+  { href: "/resurface", label: "What's Next"   },
 ];
 
 function HamburgerIcon() {

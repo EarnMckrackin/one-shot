@@ -4,7 +4,7 @@ import { createClient } from "../../../../lib/supabase";
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
   const code  = searchParams.get("code");
-  const next  = searchParams.get("next") ?? "/";
+  const next  = searchParams.get("next") ?? "/home";
 
   // Validate redirect target stays on our origin
   const redirectTo = next.startsWith("/") ? `${origin}${next}` : origin;

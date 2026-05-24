@@ -16,25 +16,56 @@ export default function LoginPage() {
     if (loading) return;
 
     const mode = e.nativeEvent.submitter?.value || (isSignup ? "signup" : "signin");
+    const trimmedEmail = email.trim();
     setLoading(true);
     setError(null);
     setStatus("Submitting credentials...");
 
     try {
+      if (!trimmedEmail) {
+        setStatus("Email required");
+        setError("Enter your email address first.");
+        return;
+      }
+
+      if (mode !== "magic" && !password) {
+        setStatus("Password required");
+        setError("Enter your password first.");
+        return;
+      }
+
       setStatus("Contacting Supabase...");
+      const redirectTo = `${location.origin}/api/auth/callback?next=/home`;
       const authRequest = mode === "signup"
         ? supabase.auth.signUp({
-            email: email.trim(),
+            email: trimmedEmail,
             password,
-            options: { emailRedirectTo: `${location.origin}/api/auth/callback?next=/home` },
+            options: { emailRedirectTo: redirectTo },
           })
-        : supabase.auth.signInWithPassword({ email: email.trim(), password });
+        : mode === "magic"
+          ? supabase.auth.signInWithOtp({
+              email: trimmedEmail,
+              options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+            })
+          : supabase.auth.signInWithPassword({ email: trimmedEmail, password });
 
       const { error } = await withTimeout(authRequest, 15000);
 
       if (error) {
         setStatus("Sign in failed");
         setError(error.message);
+        return;
+      }
+
+      if (mode === "signup") {
+        setStatus("Check your email to confirm your account, then sign in.");
+        setPassword("");
+        setIsSignup(false);
+        return;
+      }
+
+      if (mode === "magic") {
+        setStatus("Magic link sent. Check your email to finish signing in.");
         return;
       }
 
@@ -104,6 +135,9 @@ export default function LoginPage() {
             <p style={s.status}>{status}</p>
             <button type="submit" name="mode" value="signin" style={s.btn} disabled={loading}>
               {loading ? "…" : "SIGN IN!"}
+            </button>
+            <button type="submit" name="mode" value="magic" style={s.magicBtn} disabled={loading} formNoValidate>
+              SEND MAGIC LINK
             </button>
             <button type="submit" name="mode" value="signup" style={s.secondaryBtn} disabled={loading}>
               CREATE ACCOUNT!
@@ -190,6 +224,13 @@ const s = {
   secondaryBtn: {
     padding: "10px 18px 8px", width: "100%",
     background: "var(--hero-gold)", color: "var(--ink-000)",
+    fontFamily: "var(--font-burst)", fontSize: 15, letterSpacing: "0.12em",
+    border: "2.5px solid var(--ink-000)", borderRadius: 8,
+    boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer",
+  },
+  magicBtn: {
+    padding: "10px 18px 8px", width: "100%",
+    background: "var(--hero-cyan)", color: "var(--ink-000)",
     fontFamily: "var(--font-burst)", fontSize: 15, letterSpacing: "0.12em",
     border: "2.5px solid var(--ink-000)", borderRadius: 8,
     boxShadow: "3px 3px 0 var(--ink-000)", cursor: "pointer",

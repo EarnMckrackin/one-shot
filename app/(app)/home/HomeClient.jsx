@@ -131,7 +131,7 @@ export default function HomeClient() {
 
       <section style={s.flowGrid} className="home-flows">
         <FlowPanel
-          title="Self-service"
+          title="Manage Your Library"
           text="Use this when you already know the job."
           actions={[
             ["Add issue", "/scan"],
@@ -141,7 +141,7 @@ export default function HomeClient() {
           ]}
         />
         <FlowPanel
-          title="Resurface"
+          title="What's Next?"
           text="Use this when you need context before acting."
           actions={[
             ["Catch up", "/resurface?mode=catchup"],

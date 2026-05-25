@@ -331,7 +331,7 @@ export default function ReleasesClient() {
 
       {loading && <p style={s.msg}>Loading releases…</p>}
       {error   && <p style={{ ...s.msg, color: "var(--accent)" }}>{error}</p>}
-      {!loading && !error && warning && <p style={s.note}>Fallback source in use. {warning}</p>}
+      {!loading && !error && warning && <p style={s.note}>Some sources unavailable. {warning}</p>}
       {!loading && !error && source && <p style={s.source}>Source: {source}</p>}
       {!loading && !error && cacheInfo && <p style={s.source}>Cached: {formatCacheTime(cacheInfo)}</p>}
 

@@ -74,7 +74,8 @@ export async function GET() {
     const status = e?.response?.status;
     console.error("drive-files: listPDFsInFolder failed:", status, e?.response?.data ?? e.message);
     if (status === 401 || status === 403) {
-      return NextResponse.json({ error: "Drive access denied. Reconnect Google Drive.", code: "reauth" }, { status: 403 });
+      const googleMsg = e?.response?.data?.error?.message ?? e?.response?.data?.error?.status ?? "no detail";
+      return NextResponse.json({ error: `Drive API ${status}: ${googleMsg}`, code: "reauth" }, { status: 403 });
     }
     throw e;
   }

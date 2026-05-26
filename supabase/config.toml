@@ -17,6 +17,9 @@ enable_confirmations = true
 max_frequency = "1m0s"
 otp_length = 8
 
+[auth.rate_limit]
+email_sent = 60
+
 [auth.email.template.confirmation]
 subject = "Confirm your OneShot account"
 content_path = "./supabase/templates/confirmation.html"

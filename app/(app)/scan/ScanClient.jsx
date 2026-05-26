@@ -313,6 +313,47 @@ export default function ScanClient() {
     return data ? { ...data, read_count: data.reading_log?.length ?? 0 } : null;
   }
 
+  async function uploadToDriveIfConnected(comicId, file, index, total, setProgress) {
+    try {
+      const statusRes = await fetch("/api/google/status");
+      if (!statusRes.ok) return;
+      const { connected } = await statusRes.json();
+      if (!connected) return;
+
+      setProgress(`Syncing to Google Drive (${index + 1} of ${total})…`);
+
+      const sessionRes = await fetch("/api/google/upload-session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filename: file.name, fileSize: file.size }),
+      });
+      if (!sessionRes.ok) return;
+      const { uploadUrl } = await sessionRes.json();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": "application/pdf" },
+        body: file,
+      });
+      if (!uploadRes.ok) return;
+
+      const uploaded = await uploadRes.json();
+      if (!uploaded.id) return;
+
+      await fetch("/api/google/upload-complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          comicId,
+          drive_file_id:  uploaded.id,
+          drive_view_url: uploaded.webViewLink ?? null,
+        }),
+      });
+    } catch {
+      // Drive sync failure is non-fatal; PDF is already saved locally
+    }
+  }
+
   async function handlePDFSubmit(e) {
     e.preventDefault();
     if (!pdfFiles.length) return;
@@ -358,6 +399,7 @@ export default function ScanClient() {
         lastComicId = comic.id;
 
         await saveLocalPdf(comic.id, file);
+        await uploadToDriveIfConnected(comic.id, file, index, pdfFiles.length, setPdfProgress);
       }
 
       setPdfFiles([]);

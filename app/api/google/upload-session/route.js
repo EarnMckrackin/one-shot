@@ -14,7 +14,7 @@ export async function POST(request) {
     const admin = createAdminClient();
     const { data: integration, error } = await admin
       .from("user_integrations")
-      .select("tokens")
+      .select("tokens, drive_folder_id")
       .eq("user_id", user.id)
       .eq("provider", "google_drive")
       .single();
@@ -29,7 +29,8 @@ export async function POST(request) {
     const session = await createPDFUploadSession(
       decryptTokens(integration.tokens),
       filename,
-      fileSize
+      fileSize,
+      integration.drive_folder_id ?? null,
     );
 
     return NextResponse.json(session);

@@ -9,10 +9,13 @@ export async function GET() {
   const admin = createAdminClient();
   const { data: integration } = await admin
     .from("user_integrations")
-    .select("connected")
+    .select("connected, drive_folder_id")
     .eq("user_id", user.id)
     .eq("provider", "google_drive")
     .maybeSingle();
 
-  return NextResponse.json({ connected: Boolean(integration?.connected) });
+  return NextResponse.json({
+    connected:      Boolean(integration?.connected),
+    drive_folder_id: integration?.drive_folder_id ?? null,
+  });
 }

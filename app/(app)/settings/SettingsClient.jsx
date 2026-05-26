@@ -4,15 +4,45 @@ import { supabase } from "../../../lib/supabase-browser";
 import { useRouter } from "next/navigation";
 import InkButton from "../../../components/InkButton";
 
-export default function SettingsClient({ user, googleConnected, minutesPerDay: initialMinutes, flashMessage }) {
+export default function SettingsClient({ user, googleConnected, driveFolderId: initialFolderId, minutesPerDay: initialMinutes, flashMessage }) {
   const router = useRouter();
-  const [minutes, setMinutes]   = useState(initialMinutes);
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const [minutes, setMinutes]       = useState(initialMinutes);
+  const [saving, setSaving]         = useState(false);
+  const [saved, setSaved]           = useState(false);
+  const [folderUrl, setFolderUrl]   = useState(initialFolderId ? `https://drive.google.com/drive/folders/${initialFolderId}` : "");
+  const [folderSaving, setFolderSaving] = useState(false);
+  const [folderSaved, setFolderSaved]   = useState(false);
+  const [folderError, setFolderError]   = useState("");
 
   async function signOut() {
     await supabase.auth.signOut();
     router.push("/login");
+  }
+
+  function parseFolderId(url) {
+    const match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : url.trim();
+  }
+
+  async function saveDriveFolder() {
+    setFolderError("");
+    const folderId = parseFolderId(folderUrl);
+    if (!folderId) { setFolderError("Paste a Google Drive folder URL or ID."); return; }
+    setFolderSaving(true);
+    try {
+      const res = await fetch("/api/google/folder", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || "Failed to save."); }
+      setFolderSaved(true);
+      setTimeout(() => setFolderSaved(false), 2000);
+    } catch (e) {
+      setFolderError(e.message);
+    } finally {
+      setFolderSaving(false);
+    }
   }
 
   async function saveReading() {
@@ -70,10 +100,29 @@ export default function SettingsClient({ user, googleConnected, minutesPerDay: i
             ? "Connected — PDFs are stored in your Google Drive under the One Shot folder."
             : "Connect Google Drive to store and access your comic PDFs from your own account."}
         </p>
-        {googleConnected
-          ? <span style={s.connected}>● Connected</span>
-          : <InkButton href="/api/google/auth">Connect Google Drive</InkButton>
-        }
+        {googleConnected ? (
+          <>
+            <span style={s.connected}>● Connected</span>
+            <p style={{ ...s.detail, marginTop: 16 }}>
+              Paste a Google Drive folder URL to upload PDFs there instead of the default "One Shot" folder.
+            </p>
+            <div style={s.folderRow}>
+              <input
+                className="ink-input"
+                placeholder="https://drive.google.com/drive/folders/…"
+                value={folderUrl}
+                onChange={e => { setFolderUrl(e.target.value); setFolderError(""); setFolderSaved(false); }}
+                style={s.folderInput}
+              />
+              <InkButton onClick={saveDriveFolder} disabled={folderSaving} size="sm">
+                {folderSaving ? "Saving…" : folderSaved ? "Saved ✓" : "Save"}
+              </InkButton>
+            </div>
+            {folderError && <p style={s.folderErr}>{folderError}</p>}
+          </>
+        ) : (
+          <InkButton href="/api/google/auth">Connect Google Drive</InkButton>
+        )}
       </section>
 
       <section style={s.section}>
@@ -99,4 +148,7 @@ const s = {
   sliderVal:    { fontFamily: "var(--font-burst)", fontSize: 22, color: "var(--hero-gold)", minWidth: 110, textAlign: "right", letterSpacing: "0.04em" },
   hint:         { color: "var(--text-faint)", fontSize: 12, marginBottom: 16 },
   connected:    { color: "var(--hero-cyan)", fontWeight: 600, fontSize: 14 },
+  folderRow:    { display: "flex", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 4 },
+  folderInput:  { flex: 1 },
+  folderErr:    { color: "var(--accent)", fontSize: 12, marginTop: 4 },
 };

@@ -16,14 +16,24 @@ export async function GET(request) {
   if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
   const tokens    = await getTokensFromCode(code, new URL("/api/google/callback", request.url).toString());
+
+  if (!tokens.refresh_token) {
+    console.error("Google OAuth callback: no refresh_token returned. Scopes granted:", tokens.scope);
+  }
+
   const encrypted = encryptTokens(tokens);
 
-  await supabase.from("user_integrations").upsert({
+  const { error: upsertError } = await supabase.from("user_integrations").upsert({
     user_id:   user.id,
     provider:  "google_drive",
     tokens:    encrypted,
     connected: true,
   }, { onConflict: "user_id,provider" });
+
+  if (upsertError) {
+    console.error("Google Drive token upsert failed:", upsertError.message);
+    return NextResponse.redirect(new URL("/settings?google=error", request.url));
+  }
 
   return NextResponse.redirect(new URL("/settings?google=connected", request.url));
 }

@@ -27,10 +27,15 @@ export async function GET() {
     files = await listPDFsInFolder(drive, integration.drive_folder_id);
   } catch (e) {
     const status = e?.response?.status;
+    const googleMessage = e?.response?.data?.error?.message ?? e?.message ?? "Unknown error";
+    console.error("[google/drive-files] list error", status, googleMessage);
     if (status === 401 || status === 403) {
-      return NextResponse.json({ error: "Drive access denied. Reconnect Google Drive.", code: "reauth" }, { status: 403 });
+      return NextResponse.json({
+        error: `Drive access denied: ${googleMessage}`,
+        code: "reauth",
+      }, { status: 403 });
     }
-    throw e;
+    return NextResponse.json({ error: googleMessage }, { status: status ?? 500 });
   }
 
   const fileIds = files.map(f => f.id);

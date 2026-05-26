@@ -58,7 +58,7 @@ export default function SettingsClient({ user, googleConnected, driveFolderId: i
       const json = await res.json();
       if (!res.ok) {
         if (json.code === "no_folder") setImportError("Save a folder URL above first.");
-        else if (json.code === "reauth") setImportError("Reconnect Google Drive to enable import.");
+        else if (json.code === "reauth") setImportError(json.error || "Drive access denied — reconnect Google Drive.");
         else setImportError(json.error || "Could not load Drive files.");
         return;
       }

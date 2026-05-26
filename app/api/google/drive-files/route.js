@@ -56,6 +56,15 @@ export async function GET() {
     return NextResponse.json({ error: "Drive authorization expired. Reconnect Google Drive.", code: "reauth" }, { status: 403 });
   }
 
+  const grantedScope = tokens.scope ?? "";
+  if (!grantedScope.includes("drive.readonly") && !grantedScope.includes("drive ")) {
+    console.error("drive-files: token missing drive.readonly scope. Granted scopes:", grantedScope);
+    return NextResponse.json({
+      error: "Drive read permission not granted. In Google Cloud Console add the drive.readonly scope to your OAuth consent screen, then Reconnect.",
+      code: "reauth",
+    }, { status: 403 });
+  }
+
   const drive = getDriveClient(tokens);
 
   let files;

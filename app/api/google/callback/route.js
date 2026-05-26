@@ -17,8 +17,9 @@ export async function GET(request) {
 
   const tokens    = await getTokensFromCode(code, new URL("/api/google/callback", request.url).toString());
 
+  console.log("Google OAuth callback: scopes granted:", tokens.scope);
   if (!tokens.refresh_token) {
-    console.error("Google OAuth callback: no refresh_token returned. Scopes granted:", tokens.scope);
+    console.error("Google OAuth callback: no refresh_token returned.");
   }
 
   const encrypted = encryptTokens(tokens);

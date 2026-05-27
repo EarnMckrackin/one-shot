@@ -26,6 +26,7 @@ export default function ComicDetailClient({ comic: initial }) {
   const [addingPrior, setAddingPrior] = useState(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState(null);
+  const [driveStatus, setDriveStatus] = useState(null); // null | "uploading" | "synced" | "no_drive"
 
   const readLog   = comic.reading_log ?? [];
   const readCount = readLog.length;
@@ -155,6 +156,7 @@ export default function ComicDetailClient({ comic: initial }) {
     if (!file) return;
     setUploadingPdf(true);
     setPdfError(null);
+    setDriveStatus(null);
 
     try {
       await saveLocalPdf(comic.id, file);
@@ -163,15 +165,60 @@ export default function ComicDetailClient({ comic: initial }) {
         .update({ has_pdf: true })
         .eq("id", comic.id);
       if (error) throw error;
-
-      setComic((current) => ({
-        ...current,
-        has_pdf: true,
-      }));
+      setComic((current) => ({ ...current, has_pdf: true }));
     } catch (e) {
       setPdfError(e.message);
-    } finally {
       setUploadingPdf(false);
+      return;
+    }
+
+    setUploadingPdf(false);
+    uploadToDrive(file);
+  }
+
+  async function uploadToDrive(file) {
+    setDriveStatus("uploading");
+    try {
+      const filename = `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}.pdf`
+        .replace(/[^\w .#-]+/g, "").trim() || "comic.pdf";
+
+      const sessionRes = await fetch("/api/google/upload-session", {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify({ filename, fileSize: file.size }),
+      });
+
+      if (!sessionRes.ok) {
+        const body = await sessionRes.json().catch(() => ({}));
+        if (body.code === "not_connected") { setDriveStatus("no_drive"); return; }
+        throw new Error(body.error || "Could not start Drive upload.");
+      }
+
+      const { uploadUrl } = await sessionRes.json();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method:  "PUT",
+        headers: { "content-type": "application/pdf" },
+        body:    file,
+      });
+      if (!uploadRes.ok) throw new Error(`Drive upload failed (${uploadRes.status}).`);
+
+      const driveFile    = await uploadRes.json();
+      const driveFileId  = driveFile.id;
+      const driveViewUrl = driveFile.webViewLink ?? null;
+
+      const completeRes = await fetch("/api/google/upload-complete", {
+        method:  "POST",
+        headers: { "content-type": "application/json" },
+        body:    JSON.stringify({ comicId: comic.id, drive_file_id: driveFileId, drive_view_url: driveViewUrl }),
+      });
+      if (!completeRes.ok) throw new Error("Could not save Drive file ID.");
+
+      setComic((current) => ({ ...current, drive_file_id: driveFileId, drive_view_url: driveViewUrl }));
+      setDriveStatus("synced");
+    } catch (e) {
+      setDriveStatus(null);
+      setPdfError(`Drive sync failed: ${e.message}`);
     }
   }
 
@@ -294,12 +341,12 @@ export default function ComicDetailClient({ comic: initial }) {
             {comic.has_pdf && (
               <InkButton href={`/comic/${comic.id}/read`} variant="gold">Read PDF</InkButton>
             )}
-            <label className={`ink-btn ink-btn--md ink-btn--ghost ${uploadingPdf ? "is-disabled" : ""}`} style={uploadingPdf ? s.disabledLabel : undefined}>
-              {comic.has_pdf ? "Replace PDF" : "Add PDF"}
+            <label className={`ink-btn ink-btn--md ink-btn--ghost ${uploadingPdf || driveStatus === "uploading" ? "is-disabled" : ""}`} style={uploadingPdf || driveStatus === "uploading" ? s.disabledLabel : undefined}>
+              {uploadingPdf ? "Saving…" : driveStatus === "uploading" ? "Syncing to Drive…" : comic.has_pdf ? "Replace PDF" : "Add PDF"}
               <input
                 type="file"
                 accept="application/pdf"
-                disabled={uploadingPdf}
+                disabled={uploadingPdf || driveStatus === "uploading"}
                 onChange={(e) => attachPdf(e.target.files?.[0])}
                 style={{ display: "none" }}
               />
@@ -307,6 +354,9 @@ export default function ComicDetailClient({ comic: initial }) {
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>
           {pdfError && <p style={s.pdfError}>{pdfError}</p>}
+          {driveStatus === "uploading" && <p style={s.driveHint}>Syncing to Google Drive…</p>}
+          {driveStatus === "synced"    && <p style={s.driveHint}>Synced to Drive — readable on any device</p>}
+          {driveStatus === "no_drive"  && <p style={s.driveHint}>Saved locally. Connect Google Drive in Settings to read on other devices.</p>}
 
           {logOpen && (
             <div style={s.inlineForm}>
@@ -468,6 +518,7 @@ const s = {
   actions:       { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 },
   pdfMissing:    { display: "inline-flex", alignItems: "center", minHeight: 38, color: "var(--hero-gold)", fontSize: 12, fontWeight: 700 },
   pdfError:      { color: "var(--accent)", fontSize: 12, fontWeight: 700, marginTop: -6, marginBottom: 12 },
+  driveHint:     { color: "var(--text-faint)", fontSize: 12, marginTop: -6, marginBottom: 12 },
   pdfBadge:      { position: "absolute", right: 8, bottom: 48, background: "var(--hero-gold)", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 6px", borderRadius: 6, border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", letterSpacing: 0.5 },
   disabledLabel: { opacity: 0.5, pointerEvents: "none" },
   inlineForm:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "3px 3px 0 var(--ink-000)" },

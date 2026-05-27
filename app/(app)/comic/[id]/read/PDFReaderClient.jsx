@@ -31,6 +31,9 @@ export default function PDFReaderClient({ comic }) {
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [openingNative, setOpeningNative] = useState(false);
   const [renderStats, setRenderStats] = useState("");
+  const [savingOffline, setSavingOffline] = useState(false);
+  const [savedOffline, setSavedOffline] = useState(false);
+  const driveBlob = useRef(null);
 
   const title = useMemo(
     () => `${comic.title}${comic.issue_number ? ` #${comic.issue_number}` : ""}`,
@@ -88,12 +91,12 @@ export default function PDFReaderClient({ comic }) {
         const buffer = await res.arrayBuffer();
         const bytes = new Uint8Array(buffer);
         const blob = new Blob([buffer], { type: "application/pdf" });
-        await saveLocalPdfBlob(comic.id, blob, `${title}.pdf`);
+        driveBlob.current = { blob, name: `${title}.pdf` };
         localUrl = URL.createObjectURL(blob);
         if (!active) return;
         setPdfData(bytes);
         setPdfUrl(localUrl);
-        setSourceLabel("Saved locally from Google Drive");
+        setSourceLabel("Google Drive");
         return;
       }
 
@@ -278,6 +281,20 @@ export default function PDFReaderClient({ comic }) {
     dx < 0 ? goToNext() : goToPrev();
   }
 
+  async function saveOffline() {
+    if (!driveBlob.current) return;
+    setSavingOffline(true);
+    try {
+      await saveLocalPdfBlob(comic.id, driveBlob.current.blob, driveBlob.current.name);
+      setSavedOffline(true);
+      setSourceLabel("Device");
+    } catch (err) {
+      setError(err?.message || "Could not save offline.");
+    } finally {
+      setSavingOffline(false);
+    }
+  }
+
   async function openNativePdf() {
     setOpeningNative(true);
     try {
@@ -331,6 +348,18 @@ export default function PDFReaderClient({ comic }) {
           <button type="button" style={s.navBtn} onClick={goToPrev} disabled={currentPage <= 1}>‹</button>
           <span style={s.pagePill}>{pageLabel}</span>
           <button type="button" style={s.navBtn} onClick={goToNext} disabled={!pageCount || currentPage >= pageCount}>›</button>
+
+          {sourceLabel === "Google Drive" && (
+            <button
+              type="button"
+              style={savedOffline ? s.segOn : s.segOff}
+              onClick={saveOffline}
+              disabled={savingOffline || !driveBlob.current}
+              title="Save to this device for offline reading"
+            >
+              {savingOffline ? "Saving…" : "Save offline"}
+            </button>
+          )}
 
           <button type="button" style={s.fallbackBtn} onClick={openNativePdf} disabled={openingNative} title="Open in system viewer">
             {openingNative ? "…" : "⎋"}

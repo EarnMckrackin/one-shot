@@ -27,6 +27,11 @@ export default function ComicDetailClient({ comic: initial }) {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState(null);
   const [driveStatus, setDriveStatus] = useState(null); // null | "uploading" | "synced" | "no_drive"
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [driveFiles, setDriveFiles] = useState([]);
+  const [loadingDriveFiles, setLoadingDriveFiles] = useState(false);
+  const [driveFilesError, setDriveFilesError] = useState(null);
+  const [linkingDriveFile, setLinkingDriveFile] = useState(null);
 
   const readLog   = comic.reading_log ?? [];
   const readCount = readLog.length;
@@ -222,6 +227,45 @@ export default function ComicDetailClient({ comic: initial }) {
     }
   }
 
+  async function openDrivePicker() {
+    setDrivePickerOpen(true);
+    setDriveFiles([]);
+    setDriveFilesError(null);
+    setLoadingDriveFiles(true);
+    try {
+      const res = await fetch("/api/google/drive-files");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load Drive files.");
+      setDriveFiles(data.files ?? []);
+    } catch (e) {
+      setDriveFilesError(e.message);
+    } finally {
+      setLoadingDriveFiles(false);
+    }
+  }
+
+  async function linkDriveFile(driveFile) {
+    setLinkingDriveFile(driveFile.id);
+    try {
+      const res = await fetch("/api/google/upload-complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ comicId: comic.id, drive_file_id: driveFile.id }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Could not link Drive file.");
+      }
+      setComic((c) => ({ ...c, drive_file_id: driveFile.id, has_pdf: true }));
+      setDrivePickerOpen(false);
+      setDriveStatus("synced");
+    } catch (e) {
+      setPdfError(e.message);
+    } finally {
+      setLinkingDriveFile(null);
+    }
+  }
+
   async function addPriorIssue(issue) {
     const key = priorIssueKey(issue);
     setAddingPrior(key);
@@ -338,11 +382,11 @@ export default function ComicDetailClient({ comic: initial }) {
           <div style={s.actions}>
             <InkButton onClick={() => setLogOpen(!logOpen)}>Log Reading</InkButton>
             <InkButton variant="ghost" onClick={() => setSchedOpen(!schedOpen)}>+ Schedule</InkButton>
-            {comic.has_pdf && (
+            {(comic.has_pdf || comic.drive_file_id) && (
               <InkButton href={`/comic/${comic.id}/read`} variant="gold">Read PDF</InkButton>
             )}
             <label className={`ink-btn ink-btn--md ink-btn--ghost ${uploadingPdf || driveStatus === "uploading" ? "is-disabled" : ""}`} style={uploadingPdf || driveStatus === "uploading" ? s.disabledLabel : undefined}>
-              {uploadingPdf ? "Saving…" : driveStatus === "uploading" ? "Syncing to Drive…" : comic.has_pdf ? "Replace PDF" : "Add PDF"}
+              {uploadingPdf ? "Saving…" : comic.has_pdf ? "Replace (device)" : "Add from device"}
               <input
                 type="file"
                 accept="application/pdf"
@@ -351,6 +395,9 @@ export default function ComicDetailClient({ comic: initial }) {
                 style={{ display: "none" }}
               />
             </label>
+            <InkButton variant="ghost" onClick={openDrivePicker} disabled={uploadingPdf || driveStatus === "uploading"}>
+              Link from Drive
+            </InkButton>
             <InkButton href={`/scan?replace=${comic.id}`} variant="ghost">Re-identify</InkButton>
           </div>
           {pdfError && <p style={s.pdfError}>{pdfError}</p>}
@@ -418,6 +465,44 @@ export default function ComicDetailClient({ comic: initial }) {
               {savingCover ? "Saving…" : "Use"}
             </InkButton>
           </div>
+        </div>
+      )}
+
+      {drivePickerOpen && (
+        <div style={s.pickerPanel}>
+          <div style={s.pickerHeader}>
+            <h2 style={s.pickerTitle}>Link from Google Drive</h2>
+            <button style={s.pickerClose} onClick={() => setDrivePickerOpen(false)}>✕</button>
+          </div>
+
+          {loadingDriveFiles && <p style={s.pickerHint}>Loading Drive files…</p>}
+          {!loadingDriveFiles && driveFilesError && <p style={{ ...s.pickerHint, color: "var(--accent)" }}>{driveFilesError}</p>}
+          {!loadingDriveFiles && !driveFilesError && driveFiles.length === 0 && (
+            <p style={s.pickerHint}>No PDFs found in your One Shot Drive folder.</p>
+          )}
+          {!loadingDriveFiles && driveFiles.length > 0 && (
+            <div style={s.driveFileList}>
+              {driveFiles.map((f) => (
+                <div key={f.id} style={s.driveFileRow}>
+                  <div style={s.driveFileMeta}>
+                    <p style={s.driveFileName}>{f.name}</p>
+                    <p style={s.driveFileSub}>
+                      {f.size ? `${(f.size / 1_048_576).toFixed(1)} MB · ` : ""}
+                      {f.imported ? "Already linked" : "Not linked"}
+                    </p>
+                  </div>
+                  <InkButton
+                    size="sm"
+                    variant={f.id === comic.drive_file_id ? "gold" : "ghost"}
+                    disabled={linkingDriveFile === f.id}
+                    onClick={() => linkDriveFile(f)}
+                  >
+                    {linkingDriveFile === f.id ? "Linking…" : f.id === comic.drive_file_id ? "Linked" : "Link"}
+                  </InkButton>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -556,4 +641,10 @@ const s = {
 
   customUrlRow:  { display: "flex", gap: 8, marginTop: 8 },
   customUrlInput:{ flex: 1 },
+
+  driveFileList: { display: "flex", flexDirection: "column", gap: 8 },
+  driveFileRow:  { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 10, padding: "10px 12px", boxShadow: "2px 2px 0 var(--ink-000)" },
+  driveFileMeta: { flex: 1, minWidth: 0 },
+  driveFileName: { color: "var(--text)", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  driveFileSub:  { color: "var(--text-faint)", fontSize: 11, marginTop: 2 },
 };

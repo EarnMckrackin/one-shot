@@ -29,6 +29,8 @@ export default function ComicDetailClient({ comic: initial }) {
   const [driveStatus, setDriveStatus] = useState(null); // null | "uploading" | "synced" | "no_drive"
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [driveFiles, setDriveFiles] = useState([]);
+  const [driveSearch, setDriveSearch] = useState("");
+  const [driveSearchMode, setDriveSearchMode] = useState("suggested"); // suggested | manual | all
   const [loadingDriveFiles, setLoadingDriveFiles] = useState(false);
   const [driveFilesError, setDriveFilesError] = useState(null);
   const [linkingDriveFile, setLinkingDriveFile] = useState(null);
@@ -228,14 +230,24 @@ export default function ComicDetailClient({ comic: initial }) {
   }
 
   async function openDrivePicker() {
+    const suggestedSearch = buildDriveSearchText(comic);
     setDrivePickerOpen(true);
     setDriveFiles([]);
+    setDriveSearch("");
+    setDriveSearchMode(suggestedSearch ? "suggested" : "all");
     setDriveFilesError(null);
+    loadDriveFiles(suggestedSearch, suggestedSearch ? "suggested" : "all");
+  }
+
+  async function loadDriveFiles(search = "", mode = "manual") {
     setLoadingDriveFiles(true);
     try {
-      const res = await fetch("/api/google/drive-files");
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("search", search.trim());
+      const res = await fetch(`/api/google/drive-files${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load Drive files.");
+      setDriveSearchMode(mode);
       setDriveFiles(data.files ?? []);
     } catch (e) {
       setDriveFilesError(e.message);
@@ -475,10 +487,39 @@ export default function ComicDetailClient({ comic: initial }) {
             <button style={s.pickerClose} onClick={() => setDrivePickerOpen(false)}>✕</button>
           </div>
 
-          {loadingDriveFiles && <p style={s.pickerHint}>Loading Drive files…</p>}
+          <form
+            style={s.driveSearchRow}
+            onSubmit={(e) => {
+              e.preventDefault();
+              setDriveFilesError(null);
+              loadDriveFiles(driveSearch, driveSearch.trim() ? "manual" : "all");
+            }}
+          >
+            <input
+              className="ink-input"
+              value={driveSearch}
+              onChange={(e) => setDriveSearch(e.target.value)}
+              placeholder="Search PDF names and Drive text..."
+              style={s.driveSearchInput}
+            />
+            <InkButton type="submit" size="sm" disabled={loadingDriveFiles}>
+              Search
+            </InkButton>
+          </form>
+
+          {driveSearchMode === "suggested" && (
+            <p style={s.pickerHint}>Suggested matches from this comic's title, series, issue, and publisher.</p>
+          )}
+          {loadingDriveFiles && <p style={s.pickerHint}>Loading Drive files...</p>}
           {!loadingDriveFiles && driveFilesError && <p style={{ ...s.pickerHint, color: "var(--accent)" }}>{driveFilesError}</p>}
           {!loadingDriveFiles && !driveFilesError && driveFiles.length === 0 && (
-            <p style={s.pickerHint}>No PDFs found in your One Shot Drive folder.</p>
+            <p style={s.pickerHint}>
+              {driveSearchMode === "suggested"
+                ? "No suggested PDFs found. Try a manual search."
+                : driveSearchMode === "manual"
+                  ? "No PDFs matched that search."
+                  : "No PDFs found in your One Shot Drive folder."}
+            </p>
           )}
           {!loadingDriveFiles && driveFiles.length > 0 && (
             <div style={s.driveFileList}>
@@ -584,6 +625,18 @@ function formatDate(date) {
   return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 }
 
+function buildDriveSearchText(comic) {
+  const parts = [
+    comic.title,
+    comic.series?.name,
+    comic.issue_number ? `#${comic.issue_number}` : "",
+    comic.issue_number,
+    comic.publisher?.name,
+  ];
+  return [...new Set(parts.map(part => String(part ?? "").trim()).filter(Boolean))]
+    .join(" ");
+}
+
 const s = {
   page:          { maxWidth: "var(--content-max-md)" },
   back:          { color: "var(--text-faint)", fontSize: 13, display: "inline-block", marginBottom: 22 },
@@ -643,6 +696,8 @@ const s = {
   customUrlInput:{ flex: 1 },
 
   driveFileList: { display: "flex", flexDirection: "column", gap: 8 },
+  driveSearchRow: { display: "flex", gap: 8, marginBottom: 12, alignItems: "center" },
+  driveSearchInput: { flex: 1, minWidth: 0 },
   driveFileRow:  { display: "flex", alignItems: "center", gap: 12, background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 10, padding: "10px 12px", boxShadow: "2px 2px 0 var(--ink-000)" },
   driveFileMeta: { flex: 1, minWidth: 0 },
   driveFileName: { color: "var(--text)", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

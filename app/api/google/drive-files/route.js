@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "../../../../lib/supabase";
 import { getDriveClient, listPDFsInFolder, decryptTokens, encryptTokens, getOAuthClient } from "../../../../lib/google-drive";
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get("search")?.trim() ?? "";
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -69,7 +72,7 @@ export async function GET() {
 
   let files;
   try {
-    files = await listPDFsInFolder(drive, integration.drive_folder_id);
+    files = await listPDFsInFolder(drive, integration.drive_folder_id, search);
   } catch (e) {
     const status = e?.response?.status;
     console.error("drive-files: listPDFsInFolder failed:", status, e?.response?.data ?? e.message);
@@ -88,6 +91,7 @@ export async function GET() {
   const importedMap = Object.fromEntries((existing ?? []).map(c => [c.drive_file_id, c.id]));
 
   return NextResponse.json({
+    search,
     files: files.map(f => ({
       id:           f.id,
       name:         f.name,

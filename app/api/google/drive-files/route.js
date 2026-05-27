@@ -5,6 +5,7 @@ import { getDriveClient, listPDFsInFolder, decryptTokens, encryptTokens, getOAut
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim() ?? "";
+  const includeFullText = searchParams.get("fullText") === "1";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -72,7 +73,7 @@ export async function GET(request) {
 
   let files;
   try {
-    files = await listPDFsInFolder(drive, integration.drive_folder_id, search);
+    files = await listPDFsInFolder(drive, integration.drive_folder_id, search, { includeFullText });
   } catch (e) {
     const status = e?.response?.status;
     console.error("drive-files: listPDFsInFolder failed:", status, e?.response?.data ?? e.message);
@@ -92,6 +93,7 @@ export async function GET(request) {
 
   return NextResponse.json({
     search,
+    fullText: includeFullText,
     files: files.map(f => ({
       id:           f.id,
       name:         f.name,

@@ -236,14 +236,15 @@ export default function ComicDetailClient({ comic: initial }) {
     setDriveSearch("");
     setDriveSearchMode(suggestedSearch ? "suggested" : "all");
     setDriveFilesError(null);
-    loadDriveFiles(suggestedSearch, suggestedSearch ? "suggested" : "all");
+    loadDriveFiles(suggestedSearch, suggestedSearch ? "suggested" : "all", { includeFullText: Boolean(suggestedSearch) });
   }
 
-  async function loadDriveFiles(search = "", mode = "manual") {
+  async function loadDriveFiles(search = "", mode = "manual", { includeFullText = false } = {}) {
     setLoadingDriveFiles(true);
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set("search", search.trim());
+      if (includeFullText && search.trim()) params.set("fullText", "1");
       const res = await fetch(`/api/google/drive-files${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load Drive files.");
@@ -499,7 +500,7 @@ export default function ComicDetailClient({ comic: initial }) {
               className="ink-input"
               value={driveSearch}
               onChange={(e) => setDriveSearch(e.target.value)}
-              placeholder="Search PDF names and Drive text..."
+              placeholder="Search PDF names..."
               style={s.driveSearchInput}
             />
             <InkButton type="submit" size="sm" disabled={loadingDriveFiles}>

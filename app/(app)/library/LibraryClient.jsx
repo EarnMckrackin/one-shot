@@ -6,6 +6,7 @@ import { supabase } from "../../../lib/supabase-browser";
 import { readLibraryPrefs, writeLibraryPrefs } from "../../../lib/local-data-store";
 import CustomSelect from "../../../components/CustomSelect";
 import ComicCover from "../../../components/ComicCover";
+import GoogleDriveMark from "../../../components/GoogleDriveMark";
 import { useComics } from "../../../hooks/useComics";
 
 const VIEWS = ["All", "Unread", "PDF", "Needs repair", "Publishers", "Series"];
@@ -331,8 +332,13 @@ export default function LibraryClient({ publishers: initialPublishers, allSeries
                     {comic.read_count > 0 && (
                       <span style={s.readBadge}>{comic.read_count > 1 ? `×${comic.read_count}` : "✓"}</span>
                     )}
-                    {hasDigitalPdf(comic) && <span style={s.pdfBadge}>PDF</span>}
-                    {comic.has_pdf && !comic.drive_file_id && <span style={s.localPdfBadge}>Device</span>}
+                    {comic.drive_file_id ? (
+                      <span style={{ ...s.coverBadge, ...s.driveBadge }} aria-label="Google Drive PDF" title="Google Drive PDF">
+                        <GoogleDriveMark />
+                      </span>
+                    ) : comic.has_pdf ? (
+                      <span style={{ ...s.coverBadge, ...s.pdfBadge }}>PDF</span>
+                    ) : null}
                   </ComicCover>
                   <div style={s.info}>
                     <p style={s.series}>{comic.series?.name ?? ""}</p>
@@ -492,9 +498,10 @@ const s = {
   pubCount:        { display: "block", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)" },
 
   card:            { background: "var(--bg-card)", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" },
-  readBadge:       { position: "absolute", top: 6, right: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
-  pdfBadge:        { position: "absolute", bottom: 6, right: 6, background: "var(--hero-gold)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
-  localPdfBadge:   { position: "absolute", bottom: 6, left: 6, background: "var(--hero-cyan)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
+  readBadge:       { position: "absolute", top: 6, right: 6, zIndex: 2, background: "var(--hero-cyan)", color: "#000", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10 },
+  coverBadge:      { position: "absolute", bottom: 6, right: 6, zIndex: 2, minWidth: 24, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1.5px solid var(--ink-000)", boxShadow: "1px 1px 0 var(--ink-000)" },
+  pdfBadge:        { background: "var(--hero-gold)", color: "#000", fontSize: 9, fontWeight: 800, padding: "2px 5px", borderRadius: 6, letterSpacing: 0.5 },
+  driveBadge:      { background: "#fff", color: "#000", padding: "2px 5px", borderRadius: 6 },
   info:            { padding: "10px", flex: 1, display: "flex", flexDirection: "column" },
   series:          { color: "var(--text-faint)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
   issueTitle:      { color: "var(--text)", fontSize: 13, fontWeight: 600 },

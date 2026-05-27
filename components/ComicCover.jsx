@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-export default function ComicCover({ src, alt, size = "md", style = {}, loading = "lazy", className = "" }) {
+export default function ComicCover({ src, alt, size = "md", style = {}, loading = "lazy", className = "", children }) {
   const [error, setError]     = useState(false);
   const [loaded, setLoaded]   = useState(false);
 
@@ -34,6 +34,7 @@ export default function ComicCover({ src, alt, size = "md", style = {}, loading 
 
       {/* Glossy Overlay Texture */}
       <div style={s.overlay} />
+      {children}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { supabase } from "../../../../lib/supabase-browser";
 import InkButton from "../../../../components/InkButton";
 import { removeLocalLibraryComic } from "../../../../lib/local-data-store";
 import { saveLocalPdf } from "../../../../lib/local-pdf-store";
+import GoogleDriveMark from "../../../../components/GoogleDriveMark";
 
 export default function ComicDetailClient({ comic: initial }) {
   const router = useRouter();
@@ -371,7 +372,13 @@ export default function ComicDetailClient({ comic: initial }) {
             ? <img src={comic.cover_url} alt={comic.title} style={s.cover} />
             : <div style={{ ...s.cover, ...s.coverPlaceholder }}>No cover</div>
           }
-          {comic.has_pdf && <span style={s.pdfBadge}>PDF</span>}
+          {comic.drive_file_id ? (
+            <span style={{ ...s.pdfBadge, ...s.driveBadge }} aria-label="Google Drive PDF" title="Google Drive PDF">
+              <GoogleDriveMark width={16} height={14} />
+            </span>
+          ) : comic.has_pdf ? (
+            <span style={s.pdfBadge}>PDF</span>
+          ) : null}
           <InkButton variant="ghost" size="sm" onClick={openCoverPicker} style={s.changeCoverBtn}>Change Cover</InkButton>
         </div>
 
@@ -659,6 +666,7 @@ const s = {
   pdfError:      { color: "var(--accent)", fontSize: 12, fontWeight: 700, marginTop: -6, marginBottom: 12 },
   driveHint:     { color: "var(--text-faint)", fontSize: 12, marginTop: -6, marginBottom: 12 },
   pdfBadge:      { position: "absolute", right: 8, bottom: 48, background: "var(--hero-gold)", color: "#000", fontSize: 10, fontWeight: 800, padding: "3px 6px", borderRadius: 6, border: "2px solid var(--ink-000)", boxShadow: "2px 2px 0 var(--ink-000)", letterSpacing: 0.5 },
+  driveBadge:    { background: "#fff", minWidth: 28, minHeight: 24, display: "inline-flex", alignItems: "center", justifyContent: "center" },
   disabledLabel: { opacity: 0.5, pointerEvents: "none" },
   inlineForm:    { background: "var(--bg-card)", border: "2px solid var(--ink-000)", borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "3px 3px 0 var(--ink-000)" },
   formLabel:     { color: "var(--text-soft)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, fontWeight: 600 },

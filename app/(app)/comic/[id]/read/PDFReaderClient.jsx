@@ -33,7 +33,7 @@ export default function PDFReaderClient({ comic }) {
   const [renderStats, setRenderStats] = useState("");
   const [savingOffline, setSavingOffline] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
-  const [controlsPosition, setControlsPosition] = useState("top"); // "top" | "bottom" | "side" | "hidden"
+  const [controlsPosition, setControlsPosition] = useState("side"); // "top" | "bottom" | "side" | "hidden"
   const driveBlob = useRef(null);
 
   const title = useMemo(
@@ -48,6 +48,7 @@ export default function PDFReaderClient({ comic }) {
     if (saved?.pageNumber) setCurrentPage(Math.max(1, saved.pageNumber));
     if (saved?.viewMode) setViewMode(saved.viewMode);
     if (saved?.fitMode) setFitMode(saved.fitMode);
+    if (["top", "bottom", "side", "hidden"].includes(saved?.controlsPosition)) setControlsPosition(saved.controlsPosition);
   }, [comic.id]);
 
   // Persist session
@@ -59,8 +60,9 @@ export default function PDFReaderClient({ comic }) {
       viewerMode: "pdfjs-canvas",
       viewMode,
       fitMode,
+      controlsPosition,
     });
-  }, [comic.id, currentPage, pageCount, zoom, viewMode, fitMode]);
+  }, [comic.id, currentPage, pageCount, zoom, viewMode, fitMode, controlsPosition]);
 
   // Resolve PDF bytes from local store or Drive
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function PDFReaderClient({ comic }) {
   // Track available width
   useEffect(() => {
     function update() {
-      const reserve = controlsPosition === "side" ? 232 : 32;
+      const reserve = controlsPosition === "side" ? 224 : 32;
       setContainerWidth(Math.max(300, Math.min(window.innerWidth - reserve, 980)));
     }
     update();
@@ -326,15 +328,27 @@ export default function PDFReaderClient({ comic }) {
   const controlsStyle = controlsPosition === "side"
     ? { ...s.controls, ...s.controlsSide }
     : s.controls;
+  const pageStyle = controlsPosition === "side"
+    ? { ...s.page, ...s.pageWithSideControls }
+    : s.page;
+  const titleWrapStyle = controlsPosition === "side"
+    ? { ...s.titleWrap, ...s.titleWrapSide }
+    : s.titleWrap;
+  const titleStyle = controlsPosition === "side"
+    ? { ...s.title, ...s.titleSide }
+    : s.title;
+  const positionSegStyle = controlsPosition === "side"
+    ? { ...s.seg, ...s.segGrid2 }
+    : s.seg;
 
   return (
-    <div style={s.page}>
+    <div style={pageStyle}>
       {controlsPosition !== "hidden" ? (
         <div style={toolbarStyle}>
           <Link href={`/comic/${comic.id}`} style={s.back}>Back</Link>
-          <div style={s.titleWrap}>
+          <div style={titleWrapStyle}>
             <p style={s.eyebrow}>PDF Reader</p>
-            <h1 style={s.title}>{title}</h1>
+            <h1 style={titleStyle}>{title}</h1>
             {sourceLabel && <p style={s.source}>{sourceLabel}</p>}
           </div>
 
@@ -352,14 +366,18 @@ export default function PDFReaderClient({ comic }) {
             </div>
 
             {/* Zoom */}
-            <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}>−</button>
-            <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
-            <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(3, z + 0.15))}>+</button>
+            <div style={controlsPosition === "side" ? s.sideControlRow : s.inlineControlRow}>
+              <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}>−</button>
+              <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
+              <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(3, z + 0.15))}>+</button>
+            </div>
 
             {/* Navigation */}
-            <button type="button" style={s.navBtn} onClick={goToPrev} disabled={currentPage <= 1}>‹</button>
-            <span style={s.pagePill}>{pageLabel}</span>
-            <button type="button" style={s.navBtn} onClick={goToNext} disabled={!pageCount || currentPage >= pageCount}>›</button>
+            <div style={controlsPosition === "side" ? s.sideControlRow : s.inlineControlRow}>
+              <button type="button" style={s.navBtn} onClick={goToPrev} disabled={currentPage <= 1}>‹</button>
+              <span style={s.pagePill}>{pageLabel}</span>
+              <button type="button" style={s.navBtn} onClick={goToNext} disabled={!pageCount || currentPage >= pageCount}>›</button>
+            </div>
 
             {sourceLabel === "Google Drive" && (
               <button
@@ -373,7 +391,7 @@ export default function PDFReaderClient({ comic }) {
               </button>
             )}
 
-            <div style={s.seg}>
+            <div style={positionSegStyle}>
               <button type="button" style={controlsPosition === "top" ? s.segOn : s.segOff} onClick={() => setControlsPosition("top")}>Top</button>
               <button type="button" style={controlsPosition === "bottom" ? s.segOn : s.segOff} onClick={() => setControlsPosition("bottom")}>Bottom</button>
               <button type="button" style={controlsPosition === "side" ? s.segOn : s.segOff} onClick={() => setControlsPosition("side")}>Side</button>
@@ -464,6 +482,11 @@ const segBase = {
 
 const s = {
   page: { width: "100%", maxWidth: 1040, margin: "0 auto" },
+  pageWithSideControls: {
+    maxWidth: "calc(100vw - 224px)",
+    margin: "0 auto 0 0",
+    paddingRight: 10,
+  },
   toolbar: {
     position: "sticky",
     top: "calc(60px + env(safe-area-inset-top, 0px))",
@@ -494,29 +517,33 @@ const s = {
   },
   toolbarSide: {
     position: "fixed",
-    top: "calc(72px + env(safe-area-inset-top, 0px))",
+    top: "calc(66px + env(safe-area-inset-top, 0px))",
     left: "auto",
-    right: "calc(10px + env(safe-area-inset-right, 0px))",
-    bottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
-    width: 196,
+    right: "calc(8px + env(safe-area-inset-right, 0px))",
+    bottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+    width: 174,
     maxHeight: "none",
     overflowY: "auto",
     flexDirection: "column",
     alignItems: "stretch",
-    padding: 10,
+    gap: 8,
+    padding: 8,
     background: "color-mix(in srgb, var(--bg) 94%, transparent)",
     border: "2px solid var(--ink-000)",
-    borderRadius: 12,
-    boxShadow: "4px 4px 0 var(--ink-000)",
+    borderRadius: 10,
+    boxShadow: "3px 3px 0 var(--ink-000)",
   },
   back: { fontFamily: "var(--font-burst)", fontSize: 14, letterSpacing: "0.1em", color: "var(--hero-gold)", textTransform: "uppercase" },
   titleWrap: { flex: 1, minWidth: 160 },
+  titleWrapSide: { flex: "0 0 auto", minWidth: 0, paddingBottom: 7, borderBottom: "1px solid var(--border)" },
   source: { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 },
   eyebrow: { fontFamily: "var(--font-burst)", fontSize: 11, letterSpacing: "0.14em", color: "var(--hero-cyan)", textTransform: "uppercase" },
   title: { fontFamily: "var(--font-serif)", fontSize: 20, lineHeight: 1.15, margin: 0 },
+  titleSide: { fontSize: 15, lineHeight: 1.15, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
   controls: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  controlsSide: { alignItems: "stretch", flexDirection: "column" },
+  controlsSide: { alignItems: "stretch", flexDirection: "column", gap: 7, flexWrap: "nowrap" },
   seg,
+  segGrid2: { display: "grid", gridTemplateColumns: "1fr 1fr" },
   segOn:  { ...segBase, background: "var(--hero-gold)", color: "var(--bg)" },
   segOff: { ...segBase, background: "var(--bg-card)",   color: "var(--text-soft)" },
   iconBtn: { width: 32, height: 32, border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text)", boxShadow: "2px 2px 0 var(--ink-000)", fontWeight: 800, fontSize: 16, cursor: "pointer" },
@@ -524,6 +551,8 @@ const s = {
   navBtn: { width: 34, height: 34, border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text)", boxShadow: "2px 2px 0 var(--ink-000)", fontSize: 22, lineHeight: "30px", textAlign: "center", cursor: "pointer" },
   pagePill: { minHeight: 32, display: "inline-flex", alignItems: "center", padding: "0 10px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", boxShadow: "2px 2px 0 var(--ink-000)", fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: "nowrap" },
   fallbackBtn: { padding: "0 8px", height: 32, border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", boxShadow: "2px 2px 0 var(--ink-000)", fontSize: 14, cursor: "pointer" },
+  inlineControlRow: { display: "contents" },
+  sideControlRow: { display: "grid", gridTemplateColumns: "34px minmax(0, 1fr) 34px", alignItems: "center", gap: 5 },
   showControlsBtn: {
     position: "fixed",
     right: "calc(12px + env(safe-area-inset-right, 0px))",

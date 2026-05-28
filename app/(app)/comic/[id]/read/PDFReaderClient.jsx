@@ -33,6 +33,7 @@ export default function PDFReaderClient({ comic }) {
   const [renderStats, setRenderStats] = useState("");
   const [savingOffline, setSavingOffline] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [controlsPosition, setControlsPosition] = useState("top"); // "top" | "bottom" | "hidden"
   const driveBlob = useRef(null);
 
   const title = useMemo(
@@ -183,7 +184,8 @@ export default function PDFReaderClient({ comic }) {
       // Fit-width: fill the slot width (user scrolls vertically).
       let fitScale = slotWidth / base.width;
       if (fitMode === "page") {
-        const avH = Math.max(300, window.innerHeight - 160);
+        const chromeReserve = controlsPosition === "hidden" ? 44 : controlsPosition === "bottom" ? 92 : 160;
+        const avH = Math.max(300, window.innerHeight - chromeReserve);
         fitScale = Math.min(slotWidth / base.width, avH / base.height);
       }
       const fullScale = fitScale * zoom * dpr;
@@ -259,7 +261,7 @@ export default function PDFReaderClient({ comic }) {
       renderTaskRef.current?.cancel?.();
       renderTask2Ref.current?.cancel?.();
     };
-  }, [currentPage, containerWidth, zoom, pageCount, viewMode, fitMode]);
+  }, [currentPage, containerWidth, zoom, pageCount, viewMode, fitMode, controlsPosition]);
 
   // Navigation
   const pageStep = viewMode === "double" ? 2 : 1;
@@ -315,57 +317,77 @@ export default function PDFReaderClient({ comic }) {
     : viewMode === "double" && currentPage + 1 <= pageCount
       ? `${currentPage}–${currentPage + 1} / ${pageCount}`
       : `${currentPage} / ${pageCount}`;
+  const toolbarStyle = controlsPosition === "bottom"
+    ? { ...s.toolbar, ...s.toolbarBottom }
+    : s.toolbar;
 
   return (
     <div style={s.page}>
-      <div style={s.toolbar}>
-        <Link href={`/comic/${comic.id}`} style={s.back}>Back</Link>
-        <div style={s.titleWrap}>
-          <p style={s.eyebrow}>PDF Reader</p>
-          <h1 style={s.title}>{title}</h1>
-          {sourceLabel && <p style={s.source}>{sourceLabel}</p>}
-        </div>
-
-        <div style={s.controls}>
-          {/* View mode segment */}
-          <div style={s.seg}>
-            <button type="button" style={viewMode === "single" ? s.segOn : s.segOff} onClick={() => setViewMode("single")}>1 Page</button>
-            <button type="button" style={viewMode === "double" ? s.segOn : s.segOff} onClick={() => setViewMode("double")}>2 Page</button>
+      {controlsPosition !== "hidden" ? (
+        <div style={toolbarStyle}>
+          <Link href={`/comic/${comic.id}`} style={s.back}>Back</Link>
+          <div style={s.titleWrap}>
+            <p style={s.eyebrow}>PDF Reader</p>
+            <h1 style={s.title}>{title}</h1>
+            {sourceLabel && <p style={s.source}>{sourceLabel}</p>}
           </div>
 
-          {/* Fit mode segment */}
-          <div style={s.seg}>
-            <button type="button" style={fitMode === "width" ? s.segOn : s.segOff} onClick={() => setFitMode("width")}>Fit W</button>
-            <button type="button" style={fitMode === "page"  ? s.segOn : s.segOff} onClick={() => setFitMode("page")}>Fit Page</button>
-          </div>
+          <div style={s.controls}>
+            {/* View mode segment */}
+            <div style={s.seg}>
+              <button type="button" style={viewMode === "single" ? s.segOn : s.segOff} onClick={() => setViewMode("single")}>1 Page</button>
+              <button type="button" style={viewMode === "double" ? s.segOn : s.segOff} onClick={() => setViewMode("double")}>2 Page</button>
+            </div>
 
-          {/* Zoom */}
-          <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}>−</button>
-          <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
-          <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(3, z + 0.15))}>+</button>
+            {/* Fit mode segment */}
+            <div style={s.seg}>
+              <button type="button" style={fitMode === "width" ? s.segOn : s.segOff} onClick={() => setFitMode("width")}>Fit W</button>
+              <button type="button" style={fitMode === "page"  ? s.segOn : s.segOff} onClick={() => setFitMode("page")}>Fit Page</button>
+            </div>
 
-          {/* Navigation */}
-          <button type="button" style={s.navBtn} onClick={goToPrev} disabled={currentPage <= 1}>‹</button>
-          <span style={s.pagePill}>{pageLabel}</span>
-          <button type="button" style={s.navBtn} onClick={goToNext} disabled={!pageCount || currentPage >= pageCount}>›</button>
+            {/* Zoom */}
+            <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}>−</button>
+            <span style={s.zoom}>{Math.round(zoom * 100)}%</span>
+            <button type="button" style={s.iconBtn} onClick={() => setZoom((z) => Math.min(3, z + 0.15))}>+</button>
 
-          {sourceLabel === "Google Drive" && (
-            <button
-              type="button"
-              style={savedOffline ? s.segOn : s.segOff}
-              onClick={saveOffline}
-              disabled={savingOffline || !driveBlob.current}
-              title="Save to this device for offline reading"
-            >
-              {savingOffline ? "Saving…" : "Save offline"}
+            {/* Navigation */}
+            <button type="button" style={s.navBtn} onClick={goToPrev} disabled={currentPage <= 1}>‹</button>
+            <span style={s.pagePill}>{pageLabel}</span>
+            <button type="button" style={s.navBtn} onClick={goToNext} disabled={!pageCount || currentPage >= pageCount}>›</button>
+
+            {sourceLabel === "Google Drive" && (
+              <button
+                type="button"
+                style={savedOffline ? s.segOn : s.segOff}
+                onClick={saveOffline}
+                disabled={savingOffline || !driveBlob.current}
+                title="Save to this device for offline reading"
+              >
+                {savingOffline ? "Saving…" : "Save offline"}
+              </button>
+            )}
+
+            <div style={s.seg}>
+              <button
+                type="button"
+                style={controlsPosition === "top" ? s.segOff : s.segOn}
+                onClick={() => setControlsPosition(controlsPosition === "top" ? "bottom" : "top")}
+              >
+                {controlsPosition === "top" ? "Bottom" : "Top"}
+              </button>
+              <button type="button" style={s.segOff} onClick={() => setControlsPosition("hidden")}>Hide</button>
+            </div>
+
+            <button type="button" style={s.fallbackBtn} onClick={openNativePdf} disabled={openingNative} title="Open in system viewer">
+              {openingNative ? "…" : "⎋"}
             </button>
-          )}
-
-          <button type="button" style={s.fallbackBtn} onClick={openNativePdf} disabled={openingNative} title="Open in system viewer">
-            {openingNative ? "…" : "⎋"}
-          </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <button type="button" style={s.showControlsBtn} onClick={() => setControlsPosition("bottom")}>
+          Controls
+        </button>
+      )}
 
       {error ? (
         <div style={s.notice}>
@@ -452,6 +474,22 @@ const s = {
     borderBottom: "2px solid var(--ink-000)",
     flexWrap: "wrap",
   },
+  toolbarBottom: {
+    position: "fixed",
+    top: "auto",
+    left: "50%",
+    right: "auto",
+    bottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
+    width: "min(1040px, calc(100vw - 24px))",
+    maxHeight: "42vh",
+    overflowY: "auto",
+    transform: "translateX(-50%)",
+    padding: "10px 12px",
+    background: "color-mix(in srgb, var(--bg) 94%, transparent)",
+    border: "2px solid var(--ink-000)",
+    borderRadius: 12,
+    boxShadow: "4px 4px 0 var(--ink-000)",
+  },
   back: { fontFamily: "var(--font-burst)", fontSize: 14, letterSpacing: "0.1em", color: "var(--hero-gold)", textTransform: "uppercase" },
   titleWrap: { flex: 1, minWidth: 160 },
   source: { color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 },
@@ -466,6 +504,24 @@ const s = {
   navBtn: { width: 34, height: 34, border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text)", boxShadow: "2px 2px 0 var(--ink-000)", fontSize: 22, lineHeight: "30px", textAlign: "center", cursor: "pointer" },
   pagePill: { minHeight: 32, display: "inline-flex", alignItems: "center", padding: "0 10px", border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", boxShadow: "2px 2px 0 var(--ink-000)", fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: "nowrap" },
   fallbackBtn: { padding: "0 8px", height: 32, border: "2px solid var(--ink-000)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-soft)", boxShadow: "2px 2px 0 var(--ink-000)", fontSize: 14, cursor: "pointer" },
+  showControlsBtn: {
+    position: "fixed",
+    right: "calc(12px + env(safe-area-inset-right, 0px))",
+    bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+    zIndex: 22,
+    height: 34,
+    padding: "0 12px",
+    border: "2px solid var(--ink-000)",
+    borderRadius: 999,
+    background: "var(--hero-gold)",
+    color: "var(--bg)",
+    boxShadow: "2px 2px 0 var(--ink-000)",
+    fontFamily: "var(--font-burst)",
+    fontSize: 11,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    cursor: "pointer",
+  },
   progress: { margin: "14px 0 4px", color: "var(--text-soft)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" },
   debug: { margin: "0 0 10px", color: "var(--text-faint)", fontSize: 11 },
   reader: {
